@@ -1,0 +1,210 @@
+.results-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.results-title {
+    text-align: center;
+    color: var(--text-primary);
+}
+
+/* Loading State */
+.loading-state {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.loading-state .spinner {
+    margin: 0 auto 1.5rem;
+}
+
+.loading-state h3 {
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.loading-state p {
+    color: var(--text-muted);
+}
+
+/* Threat Indicator */
+.threat-indicator {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(21, 25, 51, 0.4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.threat-indicator .badge {
+    font-size: 1.125rem;
+    padding: 0.75rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.badge-icon {
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.threat-message {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Confidence Section */
+.confidence-section {
+    padding: 1.5rem;
+    background: rgba(21, 25, 51, 0.4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.confidence-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.confidence-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.confidence-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Content Preview */
+.content-preview {
+    padding: 1.5rem;
+    background: rgba(21, 25, 51, 0.4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.section-title {
+    font-size: 1.125rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.content-box {
+    background: rgba(10, 14, 39, 0.8);
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    overflow-x: auto;
+}
+
+.content-box code {
+    font-family: var(--font-code);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    display: block;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Features List */
+.features-section {
+    padding: 1.5rem;
+    background: rgba(21, 25, 51, 0.4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.features-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(10, 14, 39, 0.6);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    animation: fadeInUp 0.4s ease-out backwards;
+    transition: all 0.3s ease;
+}
+
+.feature-item:hover {
+    background: rgba(10, 14, 39, 0.8);
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateX(5px);
+}
+
+.feature-item svg {
+    flex-shrink: 0;
+    color: var(--primary);
+}
+
+/* Recommendations */
+.recommendations-section {
+    padding: 1.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.recommendations-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recommendation-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(10, 14, 39, 0.6);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    animation: fadeInUp 0.4s ease-out backwards;
+    transition: all 0.3s ease;
+}
+
+.recommendation-item:hover {
+    background: rgba(10, 14, 39, 0.8);
+    border-color: rgba(239, 68, 68, 0.3);
+    transform: translateX(5px);
+}
+
+.recommendation-item svg {
+    flex-shrink: 0;
+    color: var(--danger);
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+
+    .threat-indicator,
+    .confidence-section,
+    .content-preview,
+    .features-section,
+    .recommendations-section {
+        padding: 1rem;
+    }
+
+    .section-title {
+        font-size: 1rem;
+    }
+}
