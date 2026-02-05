@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext(null);
@@ -106,8 +107,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Get current user to clean up their credentials
+    const currentUser = user;
+    
+    // Remove auth data
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    
+    // Remove user-specific provider credentials
+    if (currentUser) {
+      const userId = currentUser.id || currentUser.username;
+      const providers = ['gmail', 'outlook', 'yahoo'];
+      
+      providers.forEach(provider => {
+        localStorage.removeItem(`${provider}_credentials_${userId}`);
+      });
+      
+      // Also remove old non-user-specific credentials (for cleanup)
+      localStorage.removeItem('gmail_credentials');
+    }
+    
     setToken(null);
     setUser(null);
   };

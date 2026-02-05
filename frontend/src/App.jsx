@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { EmailProviderProvider, useEmailProvider } from './contexts/EmailProviderContext';
 import Hero from './components/Hero';
 import AnalysisForm from './components/AnalysisForm';
 import ResultsDisplay from './components/ResultsDisplay';
 import Features from './components/Features';
-import GmailAuth from './components/GmailAuth';
-import EmailList from './components/EmailList';
+import EmailProviderSelector from './components/EmailProviderSelector';
+import MultiProviderEmailList from './components/MultiProviderEmailList';
 import Dashboard from './components/Dashboard';
 import BulkAnalysis from './components/BulkAnalysis';
 import Login from './components/Login';
@@ -14,35 +15,28 @@ import Register from './components/Register';
 import UserProfile from './components/UserProfile';
 
 function AppContent() {
-  const { isAuthenticated, loading: authLoading, token } = useAuth();
+  const { isAuthenticated, loading: authLoading, token, user } = useAuth();
+  const { connectedProviders } = useEmailProvider();
   const [results, setResults] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [viewMode, setViewMode] = useState('manual'); // 'manual', 'gmail', 'dashboard', 'bulk', or 'profile'
+  const [viewMode, setViewMode] = useState('manual'); // 'manual', 'email', 'providers', 'dashboard', 'bulk', or 'profile'
   const [authView, setAuthView] = useState('login'); // 'login' or 'register'
-  const [gmailCredentials, setGmailCredentials] = useState(null);
   const [bulkEmails, setBulkEmails] = useState(null);
 
-  // Check for stored credentials on mount
+  // Check for OAuth callback and switch to email view
   React.useEffect(() => {
-    // First check URL for auth success
+    if (!user) return;
+
     const urlParams = new URLSearchParams(window.location.search);
     const authSuccess = urlParams.get('auth');
+    const viewParam = urlParams.get('view');
     
     if (authSuccess === 'success') {
-      setViewMode('gmail');
+      setViewMode('email');
+    } else if (viewParam === 'providers') {
+      setViewMode('providers');
     }
-    
-    // Then check for stored credentials
-    const storedCredentials = localStorage.getItem('gmail_credentials');
-    if (storedCredentials) {
-      try {
-        const credentials = JSON.parse(storedCredentials);
-        setGmailCredentials(credentials);
-      } catch (err) {
-        localStorage.removeItem('gmail_credentials');
-      }
-    }
-  }, []);
+  }, [user]);
 
   const handleAnalysis = async (type, content) => {
     setIsAnalyzing(true);
@@ -96,12 +90,7 @@ function AppContent() {
     }
   };
 
-  const handleGmailAuth = (credentials) => {
-    setGmailCredentials(credentials);
-    setViewMode('gmail');
-  };
-
-  const handleEmailSelect = (content, emailData) => {
+  const handleEmailSelect = (content) => {
     // Analyze the selected email
     handleAnalysis('email', content);
   };
@@ -112,8 +101,8 @@ function AppContent() {
     setBulkEmails(emailContents);
   };
 
-  const handleSwitchToGmail = () => {
-    setViewMode('gmail');
+  const handleSwitchToEmail = () => {
+    setViewMode('email');
   };
 
   const handleSwitchToManual = () => {
@@ -215,15 +204,15 @@ function AppContent() {
             </svg>
             Tableau de Bord
           </button>
-          {gmailCredentials && (
+          {connectedProviders.length > 0 && (
             <button 
-              className={`view-tab ${viewMode === 'gmail' ? 'active' : ''}`}
-              onClick={() => setViewMode('gmail')}
+              className={`view-tab ${viewMode === 'email' ? 'active' : ''}`}
+              onClick={() => setViewMode('email')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M3 8L10.89 13.26C11.25 13.48 11.75 13.48 12.11 13.26L20 8M5 19H19C20.1 19 21 18.1 21 17V7C21 5.9 20.1 5 19 5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19Z" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              Gmail
+              Email
             </button>
           )}
           <button 
@@ -244,19 +233,20 @@ function AppContent() {
             <Dashboard />
           ) : viewMode === 'bulk' ? (
             <BulkAnalysis initialEmails={bulkEmails} />
+          ) : viewMode === 'providers' ? (
+            <EmailProviderSelector />
           ) : viewMode === 'manual' ? (
             <AnalysisForm 
               onAnalyze={handleAnalysis} 
               isAnalyzing={isAnalyzing}
-              onSwitchToGmail={handleSwitchToGmail}
+              onSwitchToGmail={handleSwitchToEmail}
             />
           ) : (
             <>
-              {!gmailCredentials ? (
-                <GmailAuth onAuthenticated={handleGmailAuth} />
+              {connectedProviders.length === 0 ? (
+                <EmailProviderSelector />
               ) : (
-                <EmailList 
-                  credentials={gmailCredentials}
+                <MultiProviderEmailList 
                   onSelectEmail={handleEmailSelect}
                   onSelectMultiple={handleMultipleEmailsSelect}
                 />
@@ -291,7 +281,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <EmailProviderProvider>
+        <AppContent />
+      </EmailProviderProvider>
     </AuthProvider>
   );
 }

@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting PhishGuard AI...")
     
     # Import models to register them with Base
-    from app.models import database_models, user_models
+    from app.models import database_models, user_models, email_provider_models
     from app.database import init_db
     
     await init_db()
@@ -65,9 +65,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(analysis.router, prefix="/api", tags=["API"])
-from app.routes import gmail, auth
+from app.routes import gmail, auth, email_providers
 app.include_router(gmail.router, prefix="/api", tags=["Gmail"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(email_providers.router, prefix="/api/email", tags=["Email Providers"])
 
 
 @app.get("/", tags=["Root"])

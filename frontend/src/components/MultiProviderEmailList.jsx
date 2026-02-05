@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import './EmailList.css';
 import { useAuth } from '../contexts/AuthContext';
+import { useEmailProvider } from '../contexts/EmailProviderContext';
 
-const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
+const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
     const { token } = useAuth();
+    const { selectedProvider, connectedProviders, setSelectedProvider } = useEmailProvider();
     const [emails, setEmails] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -12,24 +14,26 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
     const [multiSelectMode, setMultiSelectMode] = useState(false);
 
     useEffect(() => {
-        if (credentials) {
+        if (selectedProvider && connectedProviders.includes(selectedProvider)) {
             fetchEmails();
         }
-    }, [credentials]);
+    }, [selectedProvider]);
 
     const fetchEmails = async () => {
+        if (!selectedProvider) return;
+        
         setLoading(true);
         setError(null);
 
         try {
-            const response = await fetch('http://localhost:8000/api/gmail/emails', {
+            const response = await fetch('http://localhost:8000/api/email/emails', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    credentials: credentials,
+                    provider: selectedProvider,
                     max_results: 20
                 })
             });
@@ -39,7 +43,7 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
             }
 
             const data = await response.json();
-            setEmails(data.emails);
+            setEmails(data.emails || []);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -49,21 +53,19 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
 
     const handleEmailClick = async (email) => {
         if (multiSelectMode) {
-            // Multi-select mode: toggle selection
             toggleEmailSelection(email);
         } else {
-            // Single select mode: analyze immediately
             setSelectedEmailId(email.id);
             
             try {
-                const response = await fetch('http://localhost:8000/api/gmail/email/content', {
+                const response = await fetch('http://localhost:8000/api/email/email/content', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        credentials: credentials,
+                        provider: selectedProvider,
                         message_id: email.id
                     })
                 });
@@ -104,17 +106,16 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
 
         setLoading(true);
         try {
-            // Fetch content for all selected emails
             const emailContents = await Promise.all(
                 selectedEmails.map(async (email) => {
-                    const response = await fetch('http://localhost:8000/api/gmail/email/content', {
+                    const response = await fetch('http://localhost:8000/api/email/email/content', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify({
-                            credentials: credentials,
+                            provider: selectedProvider,
                             message_id: email.id
                         })
                     });
@@ -128,7 +129,6 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
                 })
             );
 
-            // Pass to bulk analysis
             if (onSelectMultiple) {
                 onSelectMultiple(emailContents);
             }
@@ -146,6 +146,19 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
 
     const deselectAll = () => {
         setSelectedEmails([]);
+    };
+
+    const getProviderIcon = (provider) => {
+        switch(provider) {
+            case 'gmail':
+                return '📧';
+            case 'outlook':
+                return '📨';
+            case 'yahoo':
+                return '📬';
+            default:
+                return '✉️';
+        }
     };
 
     if (loading && emails.length === 0) {
@@ -175,9 +188,37 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
     return (
         <div className="email-list-container fade-in-up">
             <div className="glass-card">
+                {/* Provider Tabs */}
+                {connectedProviders.length > 1 && (
+                    <div className="provider-tabs" style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                        {connectedProviders.map(provider => (
+                            <button
+                                key={provider}
+                                className={`btn ${selectedProvider === provider ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                                onClick={() => setSelectedProvider(provider)}
+                                style={{ textTransform: 'capitalize' }}
+                            >
+                                {getProviderIcon(provider)} {provider}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 <div className="email-list-header">
-                    <h2 className="form-title">Vos Emails</h2>
+                    <h2 className="form-title">
+                        {getProviderIcon(selectedProvider)} Vos Emails {selectedProvider && `(${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)})`}
+                    </h2>
                     <div className="header-actions">
+                        <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => window.location.href = '/?view=providers'}
+                            title="Gérer les fournisseurs d'email"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 5V19M5 12H19" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Ajouter un compte
+                        </button>
                         <button 
                             className={`btn btn-sm ${multiSelectMode ? 'btn-primary' : 'btn-secondary'}`}
                             onClick={toggleMultiSelectMode}
@@ -275,4 +316,4 @@ const EmailList = ({ onSelectEmail, credentials, onSelectMultiple }) => {
     );
 };
 
-export default EmailList;
+export default MultiProviderEmailList;
