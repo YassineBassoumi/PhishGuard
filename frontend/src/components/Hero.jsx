@@ -1,35 +1,29 @@
-import React from 'react';
 import './Hero.css';
+import Logo from './Logo';
 
 const Hero = () => {
     return (
-        <div className="hero" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', width: '100%' }}>
-            <div className="hero-content fade-in-up" style={{ textAlign: 'center', maxWidth: '1000px', margin: '0 auto' }}>
-                <div className="hero-badge mb-md" style={{ margin: '0 auto 1.5rem' }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
-                            fill="url(#gradient)" stroke="currentColor" strokeWidth="2" />
-                        <defs>
-                            <linearGradient id="gradient" x1="2" y1="2" x2="22" y2="21">
-                                <stop offset="0%" stopColor="#00d4ff" />
-                                <stop offset="100%" stopColor="#a855f7" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
+        <div className="hero">
+            <div className="hero-content fade-in-up">
+                <div className="hero-badge mb-md">
+                    <Logo size={64} showText={false} />
                 </div>
 
-                <h1 className="hero-title" style={{ textAlign: 'center' }}>PhishGuard AI</h1>
-                <p className="hero-subtitle mb-lg" style={{ textAlign: 'center' }}>
-                    Système de détection de phishing par IA
+                <h1 className="hero-title">
+                    Phish<span className="hero-title-guard">Guard</span>
+                </h1>
+                
+                <p className="hero-subtitle mb-lg">
+                    Plateforme intelligente dédiée à la détection des attaques de phishing
                 </p>
 
-                <p className="hero-description mb-xl" style={{ textAlign: 'center', margin: '0 auto 3rem' }}>
-                    Détectez les emails et URLs malveillants grâce à l'intelligence artificielle.
-                    <br />
-                    Analyse en temps réel • NLP avancé • Haute précision
+                <p className="hero-description mb-xl">
+                    Détectez les emails et URLs malveillants à l’aide de l’intelligence artificielle.
+                     PhishGuard s’appuie sur des techniques avancées de traitement du langage naturel et de Machine Learning pour analyser les contenus sélectionnés et identifier les menaces en ligne, tout en protégeant les utilisateurs contre les tentatives de fraude.<br/>
+                    Analyse à la demande . NLP avancé . Haute précision
                 </p>
 
-                <div className="hero-stats" style={{ display: 'flex', justifyContent: 'center', gap: '3rem', flexWrap: 'wrap', margin: '0 auto' }}>
+                <div className="hero-stats">
                     <div className="stat-item scale-in">
                         <div className="stat-value">99.2%</div>
                         <div className="stat-label">Précision</div>

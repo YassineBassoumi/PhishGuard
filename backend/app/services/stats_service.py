@@ -72,25 +72,50 @@ class StatsService:
         stats.last_updated = datetime.utcnow()
     
     @staticmethod
-    async def get_statistics(db: AsyncSession) -> Dict:
-        """Get platform statistics"""
-        result = await db.execute(select(Statistics).limit(1))
-        stats = result.scalar_one_or_none()
-        
-        if not stats:
+    async def get_statistics(db: AsyncSession, user_id: int = None) -> Dict:
+        """Get statistics for a specific user or platform-wide"""
+        if user_id:
+            # Get user-specific statistics
+            # Count total analyses for this user
+            total_result = await db.execute(
+                select(func.count(AnalysisHistory.id))
+                .where(AnalysisHistory.user_id == user_id)
+            )
+            total_analyses = total_result.scalar() or 0
+            
+            # Count threats detected for this user
+            threats_result = await db.execute(
+                select(func.count(AnalysisHistory.id))
+                .where(AnalysisHistory.user_id == user_id)
+                .where(AnalysisHistory.threat_level.in_(["suspicious", "dangerous"]))
+            )
+            threats_detected = threats_result.scalar() or 0
+            
             return {
-                "totalAnalyses": 0,
-                "accuracy": 99.2,
+                "totalAnalyses": total_analyses,
+                "accuracy": 99.2,  # This would be calculated from actual data
                 "averageResponseTime": "<2s",
-                "threatsDetected": 0
+                "threatsDetected": threats_detected
             }
-        
-        return {
-            "totalAnalyses": stats.total_analyses,
-            "accuracy": 99.2,  # This would be calculated from actual data
-            "averageResponseTime": "<2s",
-            "threatsDetected": stats.threats_detected
-        }
+        else:
+            # Get platform-wide statistics
+            result = await db.execute(select(Statistics).limit(1))
+            stats = result.scalar_one_or_none()
+            
+            if not stats:
+                return {
+                    "totalAnalyses": 0,
+                    "accuracy": 99.2,
+                    "averageResponseTime": "<2s",
+                    "threatsDetected": 0
+                }
+            
+            return {
+                "totalAnalyses": stats.total_analyses,
+                "accuracy": 99.2,  # This would be calculated from actual data
+                "averageResponseTime": "<2s",
+                "threatsDetected": stats.threats_detected
+            }
     
     @staticmethod
     async def get_recent_analyses(
@@ -143,15 +168,20 @@ class StatsService:
         ]
     
     @staticmethod
-    async def get_threat_distribution(db: AsyncSession) -> Dict:
-        """Get distribution of threat levels"""
-        result = await db.execute(
-            select(
-                AnalysisHistory.threat_level,
-                func.count(AnalysisHistory.id).label('count')
-            )
-            .group_by(AnalysisHistory.threat_level)
+    async def get_threat_distribution(db: AsyncSession, user_id: int = None) -> Dict:
+        """Get distribution of threat levels for a specific user or platform-wide"""
+        query = select(
+            AnalysisHistory.threat_level,
+            func.count(AnalysisHistory.id).label('count')
         )
+        
+        # Filter by user if provided
+        if user_id:
+            query = query.where(AnalysisHistory.user_id == user_id)
+        
+        query = query.group_by(AnalysisHistory.threat_level)
+        
+        result = await db.execute(query)
         
         distribution = {row.threat_level: row.count for row in result}
         

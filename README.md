@@ -138,7 +138,7 @@ Advanced URL analysis with **12 optimized features**:
 
 3. **Frontend Setup**
    ```bash
-   cd ../frontend
+   cd frontend
    npm install
    ```
 
@@ -146,55 +146,141 @@ Advanced URL analysis with **12 optimized features**:
    
    Create a `.env` file in the `backend` directory:
    ```env
-   SECRET_KEY=your-secret-key-here
-   DATABASE_URL=sqlite:///./phishguard.db
-   GMAIL_CLIENT_ID=your-gmail-client-id
-   GMAIL_CLIENT_SECRET=your-gmail-client-secret
+   # Database Configuration (Supabase PostgreSQL)
+   DATABASE_URL=postgresql+asyncpg://postgres.xxxxx:password@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+
+   # JWT Configuration
+   SECRET_KEY=votre-cle-secrete-changez-en-production
+   ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+   # Google OAuth Configuration (Optionnel)
+   GOOGLE_CLIENT_ID=votre-google-client-id
+   GOOGLE_CLIENT_SECRET=votre-google-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost:8000/api/gmail/callback
+
+   # Outlook OAuth Configuration (Optionnel)
+   OUTLOOK_CLIENT_ID=votre-outlook-client-id
+   OUTLOOK_CLIENT_SECRET=votre-outlook-client-secret
+   OUTLOOK_REDIRECT_URI=http://localhost:8000/api/outlook/callback
+
+   # Frontend URL
+   FRONTEND_URL=http://localhost:5174
    ```
 
 5. **Initialize Database**
-   ```bash
-   cd backend
-   python
-   >>> from database import init_db
-   >>> init_db()
-   >>> exit()
-   ```
+   
+   La base de données sera automatiquement initialisée au premier lancement du backend.
 
 ## 🎯 Usage
 
-### Running the Application
+### 🚀 Lancer l'Application
 
-1. **Start the Backend** (from `backend` directory)
-   ```bash
-   python main.py
+#### Option 1: Deux Terminaux Séparés (Recommandé)
+
+**Terminal 1 - Lancer le Backend:**
+```bash
+cd backend
+python -m uvicorn app.main:app --reload --port 8000
+```
+✅ Backend accessible sur `http://localhost:8000`
+
+**Terminal 2 - Lancer le Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+✅ Frontend accessible sur `http://localhost:5174`
+
+#### Option 2: Commande Unique (Windows)
+
+Depuis la racine du projet:
+```bash
+start cmd /k "cd backend && python -m uvicorn app.main:app --reload --port 8000" && start cmd /k "cd frontend && npm run dev"
+```
+
+#### Option 3: Commande Unique (macOS/Linux)
+
+Depuis la racine du projet:
+```bash
+cd backend && python -m uvicorn app.main:app --reload --port 8000 & cd ../frontend && npm run dev
+```
+
+### 📱 URLs d'Accès
+
+Une fois les deux serveurs lancés:
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| 🌐 **Application** | http://localhost:5174 | Interface utilisateur principale |
+| ⚙️ **API Backend** | http://localhost:8000 | API REST |
+| 📚 **Swagger Docs** | http://localhost:8000/docs | Documentation API interactive |
+| 📖 **ReDoc** | http://localhost:8000/redoc | Documentation API alternative |
+
+### ⚠️ Notes Importantes
+
+1. **Configuration requise**: Assurez-vous que le fichier `.env` est configuré dans `backend/`
+2. **Dépendances**: Les packages doivent être installés (voir [Installation](#installation))
+3. **Port Frontend**: Le port peut varier (5173, 5174, 5175) - vérifiez la sortie du terminal
+4. **Base de données**: Supabase PostgreSQL doit être accessible (configuré dans `.env`)
+
+### 🔧 Dépannage
+
+**Si le backend ne démarre pas:**
+```bash
+cd backend
+pip install asyncpg --only-binary :all:
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+**Si le frontend ne démarre pas:**
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+**Erreur de connexion à la base de données:**
+- Vérifiez que `DATABASE_URL` dans `.env` est correct
+- Testez la connexion à Supabase
+- Vérifiez que votre IP est autorisée dans Supabase
+
+### 🎬 Premier Lancement
+
+1. **Créer un compte** - Inscrivez-vous avec email et mot de passe
+2. **Se connecter** - Utilisez vos identifiants
+3. **Commencer l'analyse** - Analysez des emails et URLs!
+
+### 📧 Intégration Gmail (Optionnel)
+
+Pour activer l'intégration Gmail:
+
+1. **Créer un projet Google Cloud**
+   - Allez sur [Google Cloud Console](https://console.cloud.google.com/)
+   - Créez un nouveau projet
+
+2. **Activer Gmail API**
+   - Dans "APIs & Services" > "Library"
+   - Recherchez "Gmail API" et activez-la
+
+3. **Créer des identifiants OAuth 2.0**
+   - Dans "APIs & Services" > "Credentials"
+   - Créez des identifiants OAuth 2.0
+   - Type: Application Web
+
+4. **Configurer les URIs de redirection**
+   - URI autorisée: `http://localhost:8000/api/gmail/callback`
+   - URI JavaScript: `http://localhost:5174`
+
+5. **Ajouter au fichier `.env`**
+   ```env
+   GOOGLE_CLIENT_ID=votre-client-id
+   GOOGLE_CLIENT_SECRET=votre-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost:8000/api/gmail/callback
    ```
-   Backend will run on `http://localhost:8000`
 
-2. **Start the Frontend** (from `frontend` directory)
-   ```bash
-   npm run dev
-   ```
-   Frontend will run on `http://localhost:5173`
-
-3. **Access the Application**
-   
-   Open your browser and navigate to `http://localhost:5173`
-
-### First-Time Setup
-
-1. **Register** a new account
-2. **Login** with your credentials
-3. Start analyzing emails and URLs!
-
-### Gmail Integration (Optional)
-
-To enable Gmail integration:
-1. Create a Google Cloud project
-2. Enable Gmail API
-3. Create OAuth 2.0 credentials
-4. Add credentials to `.env` file
-5. Configure authorized redirect URIs
+6. **Redémarrer le backend** pour appliquer les changements
 
 ## 📚 API Documentation
 

@@ -81,8 +81,11 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
             name: 'Outlook',
             description: 'Microsoft Outlook/Hotmail',
             icon: (
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M7 4v16h10V4H7zm5 14c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="#0078D4"/>
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <rect width="64" height="64" rx="8" fill="#0078D4"/>
+                    <circle cx="32" cy="32" r="18" fill="white"/>
+                    <circle cx="32" cy="32" r="12" fill="#0078D4"/>
+                    <circle cx="32" cy="32" r="6" fill="white"/>
                 </svg>
             ),
             gradient: 'outlook-gradient',
@@ -93,8 +96,10 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
             name: 'Yahoo Mail',
             description: 'Yahoo Mail',
             icon: (
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L8 12h3v8h2v-8h3L12 2z" fill="#6001D2"/>
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <rect width="64" height="64" rx="8" fill="#6001D2"/>
+                    <path d="M32 16L24 32H28V44H36V32H40L32 16Z" fill="white" stroke="white" strokeWidth="2"/>
+                    <circle cx="32" cy="50" r="3" fill="white"/>
                 </svg>
             ),
             gradient: 'yahoo-gradient',

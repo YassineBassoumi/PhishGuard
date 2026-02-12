@@ -1,27 +1,47 @@
 .bulk-analysis-container {
-    max-width: 1200px;
+    max-width: 1000px;
     margin: 0 auto;
     padding: 2rem 1rem;
 }
 
+.glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 1.5rem;
+    padding: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bulk-analysis-title {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.75rem;
+}
+
 .form-description {
-    color: var(--text-secondary);
-    margin-bottom: 2rem;
-    font-size: 0.95rem;
+    color: #64748b;
+    margin-bottom: 2.5rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
 }
 
 /* Email Fields */
 .email-fields {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
 }
 
 .email-field-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
 }
 
 .email-field-header {
@@ -31,38 +51,42 @@
 }
 
 .email-number {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: #475569;
 }
 
 .remove-email-btn {
     background: transparent;
-    border: 1px solid var(--danger);
-    border-radius: 6px;
-    color: var(--danger);
-    padding: 0.25rem 0.5rem;
+    border: 1.5px solid #ef4444;
+    border-radius: 0.5rem;
+    color: #ef4444;
+    padding: 0.375rem 0.75rem;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
 }
 
 .remove-email-btn:hover {
-    background: var(--danger);
+    background: #ef4444;
     color: white;
+    transform: translateY(-1px);
 }
 
 .email-textarea {
     width: 100%;
-    min-height: 100px;
-    padding: 1rem;
-    background: rgba(21, 25, 51, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 12px;
-    color: var(--text-primary);
-    font-family: var(--font-code);
-    font-size: 0.875rem;
+    min-height: 120px;
+    padding: 1.25rem;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.75rem;
+    color: #1e293b;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
     line-height: 1.6;
     resize: vertical;
     transition: all 0.3s ease;
@@ -70,13 +94,13 @@
 }
 
 .email-textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
-    background: rgba(21, 25, 51, 1);
+    border-color: #5b8def;
+    box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.1);
+    background: #ffffff;
 }
 
 .email-textarea::placeholder {
-    color: var(--text-muted);
+    color: #94a3b8;
 }
 
 .add-email-btn {
@@ -84,7 +108,21 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
+    padding: 0.875rem 1.5rem;
+    background: transparent;
+    border: 2px dashed #cbd5e1;
+    border-radius: 0.75rem;
+    color: #64748b;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.add-email-btn:hover {
+    border-color: #5b8def;
+    color: #5b8def;
+    background: rgba(91, 141, 239, 0.05);
 }
 
 /* Progress Section */
@@ -108,7 +146,11 @@
 
 /* Summary Card */
 .summary-card {
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+    background: white !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 16px !important;
+    padding: 2rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
 
 .summary-header {
@@ -120,23 +162,23 @@
 
 .summary-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
     margin-bottom: 2rem;
 }
 
 .summary-stat {
     text-align: center;
     padding: 1.5rem;
-    background: rgba(21, 25, 51, 0.6);
+    background: #f9fafb;
+    border: 2px solid #e5e7eb;
     border-radius: 12px;
-    border: 2px solid rgba(148, 163, 184, 0.1);
     transition: all 0.3s ease;
 }
 
 .summary-stat:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .summary-stat.safe {
@@ -154,65 +196,66 @@
 .summary-stat .stat-value {
     font-size: 2.5rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #667eea;
     line-height: 1;
     margin-bottom: 0.5rem;
 }
 
 .summary-stat.safe .stat-value {
-    color: var(--success);
+    color: #10b981;
 }
 
 .summary-stat.suspicious .stat-value {
-    color: var(--warning);
+    color: #f59e0b;
 }
 
 .summary-stat.dangerous .stat-value {
-    color: var(--danger);
+    color: #ef4444;
 }
 
 .summary-stat .stat-label {
     font-size: 0.875rem;
-    color: var(--text-muted);
+    color: #6b7280;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.5px;
+    font-weight: 600;
 }
 
 .summary-details {
     display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    justify-content: space-around;
+    gap: 2rem;
     padding: 1.5rem;
-    background: rgba(21, 25, 51, 0.4);
+    background: #f9fafb;
     border-radius: 12px;
 }
 
 .detail-item {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.detail-item:last-child {
-    border-bottom: none;
+    gap: 0.5rem;
 }
 
 .detail-label {
     font-size: 0.875rem;
-    color: var(--text-secondary);
+    color: #6b7280;
     font-weight: 500;
 }
 
 .detail-value {
-    font-size: 1rem;
-    color: var(--text-primary);
-    font-weight: 600;
+    font-size: 1.5rem;
+    color: #111827;
+    font-weight: 700;
 }
 
 /* Results List */
 .results-list-card {
+    background: white !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 16px !important;
+    padding: 2rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
     max-height: 800px;
     overflow-y: auto;
 }
@@ -220,7 +263,7 @@
 .results-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #111827;
     margin-bottom: 1.5rem;
 }
 
@@ -232,15 +275,16 @@
 
 .result-item {
     padding: 1.5rem;
-    background: rgba(21, 25, 51, 0.6);
+    background: white;
+    border: 2px solid #e5e7eb;
     border-radius: 12px;
     border-left: 4px solid;
     transition: all 0.3s ease;
 }
 
 .result-item:hover {
-    background: rgba(21, 25, 51, 0.8);
-    transform: translateX(4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
 }
 
 .result-header {
@@ -255,26 +299,28 @@
     align-items: center;
     gap: 0.75rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #111827;
 }
 
 .threat-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.125rem;
+    font-size: 1.25rem;
+    font-weight: 700;
 }
 
 .threat-badge {
-    padding: 0.375rem 0.875rem;
-    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.5px;
+    color: white;
 }
 
 .result-content {
@@ -284,10 +330,15 @@
 }
 
 .content-preview {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
+    color: #4b5563;
+    font-size: 0.95rem;
     line-height: 1.6;
     margin: 0;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    font-family: 'Courier New', monospace;
 }
 
 .confidence-bar {
@@ -299,33 +350,35 @@
 .confidence-label {
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: #6b7280;
 }
 
 .confidence-progress {
-    height: 8px;
-    background: rgba(148, 163, 184, 0.1);
-    border-radius: 4px;
+    height: 10px;
+    background: #e5e7eb;
+    border-radius: 5px;
     overflow: hidden;
 }
 
 .confidence-fill {
     height: 100%;
-    border-radius: 4px;
+    border-radius: 5px;
     transition: width 0.6s ease;
 }
 
 .features-section {
     padding: 1rem;
-    background: rgba(148, 163, 184, 0.05);
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
 }
 
 .features-section strong {
-    color: var(--text-primary);
+    color: #111827;
     font-size: 0.875rem;
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
 }
 
 .features-list {
@@ -338,18 +391,20 @@
 }
 
 .features-list li {
-    color: var(--text-secondary);
+    color: #4b5563;
     font-size: 0.875rem;
     padding-left: 1.25rem;
     position: relative;
+    line-height: 1.5;
 }
 
 .features-list li::before {
     content: '•';
     position: absolute;
     left: 0;
-    color: var(--primary);
+    color: #5b8def;
     font-weight: bold;
+    font-size: 1.2rem;
 }
 
 /* Responsive */
@@ -369,6 +424,15 @@
         align-items: flex-start;
         gap: 0.75rem;
     }
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
 }
 
 /* Gmail import notice */

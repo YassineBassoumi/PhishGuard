@@ -132,14 +132,17 @@ async def analyze_url(
 
 
 @router.get("/stats", response_model=StatsResponse, tags=["Statistics"])
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """
-    Get platform statistics
+    Get user-specific statistics
     
-    Returns detection accuracy, total analyses, and other metrics
+    Returns detection accuracy, total analyses, and other metrics for the current user
     """
     try:
-        stats = await stats_service.get_statistics(db)
+        stats = await stats_service.get_statistics(db, user_id=current_user.id)
         return StatsResponse(**stats)
     except Exception as e:
         logger.error(f"Failed to get statistics: {str(e)}", exc_info=True)
@@ -231,12 +234,15 @@ async def get_history(
 
 
 @router.get("/threat-distribution", tags=["Statistics"])
-async def get_threat_distribution(db: AsyncSession = Depends(get_db)):
+async def get_threat_distribution(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """
-    Get distribution of threat levels across all analyses
+    Get distribution of threat levels for the current user's analyses
     """
     try:
-        distribution = await stats_service.get_threat_distribution(db)
+        distribution = await stats_service.get_threat_distribution(db, user_id=current_user.id)
         return distribution
     except Exception as e:
         logger.error(f"Failed to get threat distribution: {str(e)}", exc_info=True)
@@ -341,3 +347,136 @@ async def analyze_bulk_emails(
     except Exception as e:
         logger.error(f"Bulk analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Bulk analysis failed: {str(e)}")
+
+
+@router.post("/analyze-progressive", tags=["Analysis"])
+async def analyze_progressive(
+    request: URLAnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Progressive URL analysis with step-by-step indicators
+    
+    Returns individual check results for real-time display
+    
+    Requires authentication
+    """
+    from urllib.parse import urlparse
+    import re
+    
+    try:
+        url = request.url
+        logger.info(f"User {current_user.username} starting progressive analysis: {url}")
+        
+        indicators = {}
+        
+        # 1. HTTPS Check
+        has_https = url.lower().startswith('https://')
+        indicators['https'] = {
+            'status': 'safe' if has_https else 'warning',
+            'label': 'Vérification SSL',
+            'message': 'HTTPS détecté' if has_https else 'HTTPS manquant',
+            'passed': has_https
+        }
+        
+        # 2. Domain Analysis
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc
+            
+            # Check if IP address
+            is_ip = bool(re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', domain))
+            
+            # Check subdomain count
+            subdomain_count = len(domain.split('.')) - 2 if len(domain.split('.')) > 2 else 0
+            
+            domain_safe = not is_ip and subdomain_count <= 2
+            
+            if is_ip:
+                domain_msg = 'Utilise une adresse IP'
+            elif subdomain_count > 2:
+                domain_msg = f'{subdomain_count} sous-domaines détectés'
+            else:
+                domain_msg = 'Structure de domaine normale'
+            
+            indicators['domain'] = {
+                'status': 'safe' if domain_safe else 'danger',
+                'label': 'Analyse du Domaine',
+                'message': domain_msg,
+                'passed': domain_safe
+            }
+        except:
+            indicators['domain'] = {
+                'status': 'danger',
+                'label': 'Analyse du Domaine',
+                'message': 'Domaine invalide',
+                'passed': False
+            }
+        
+        # 3. Phishing Keywords Check
+        phishing_keywords = ['login', 'signin', 'account', 'verify', 'secure', 'update', 
+                            'confirm', 'banking', 'paypal', 'password']
+        found_keywords = [kw for kw in phishing_keywords if kw in url.lower()]
+        
+        keywords_safe = len(found_keywords) == 0
+        
+        indicators['keywords'] = {
+            'status': 'safe' if keywords_safe else 'warning' if len(found_keywords) <= 1 else 'danger',
+            'label': 'Mots-clés Suspects',
+            'message': 'Aucun mot-clé suspect' if keywords_safe else f'{len(found_keywords)} mot(s)-clé(s) trouvé(s)',
+            'passed': keywords_safe
+        }
+        
+        # 4. URL Structure Check
+        url_length = len(url)
+        suspicious_chars = url.count('@') + url.count('//') - 1  # -1 for protocol //
+        
+        structure_safe = url_length < 100 and suspicious_chars == 0
+        
+        if url_length >= 100:
+            structure_msg = 'URL anormalement longue'
+        elif suspicious_chars > 0:
+            structure_msg = 'Caractères suspects détectés'
+        else:
+            structure_msg = 'Structure URL normale'
+        
+        indicators['structure'] = {
+            'status': 'safe' if structure_safe else 'warning',
+            'label': 'Structure URL',
+            'message': structure_msg,
+            'passed': structure_safe
+        }
+        
+        # Now run full ML analysis
+        threat_level, confidence, features, recommendations = detector.analyze_url(url)
+        
+        # Save to database
+        await stats_service.save_analysis(
+            db=db,
+            analysis_type="url",
+            content_preview=url,
+            threat_level=threat_level,
+            confidence=confidence,
+            features=features,
+            recommendations=recommendations,
+            user_id=current_user.id
+        )
+        
+        logger.info(f"Progressive analysis complete: {threat_level} (confidence: {confidence}%)")
+        
+        return {
+            'indicators': indicators,
+            'analysis': {
+                'type': 'url',
+                'content': url,
+                'threatLevel': threat_level,
+                'confidence': confidence,
+                'features': features,
+                'recommendations': recommendations
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Progressive analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

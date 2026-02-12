@@ -30,11 +30,19 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Set to True for SQL query logging
     future=True,
-    pool_size=20,  # Connection pool size
-    max_overflow=0,  # Don't allow connections beyond pool_size
+    pool_size=10,  # Reduced pool size
+    max_overflow=5,  # Allow some overflow
     pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_timeout=30,  # Timeout for getting connection from pool
     connect_args={
         "ssl": ssl_context,  # Use SSL context for Supabase
+        "server_settings": {
+            "application_name": "phishguard_app",
+            "jit": "off"
+        },
+        "command_timeout": 60,
+        "statement_cache_size": 0,  # Disable prepared statements for pgbouncer compatibility
     }
 )
 
@@ -55,7 +63,7 @@ async def get_db():
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
             await session.rollback()
             raise
         finally:

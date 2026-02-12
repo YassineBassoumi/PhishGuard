@@ -1,0 +1,43 @@
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shield-container {
+  position: relative;
+  transition: all 0.3s ease;
+  animation: shield-pulse 3s ease-in-out infinite;
+}
+
+.shield-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(91, 141, 239, 0.4) !important;
+}
+
+/* Shield pulse animation */
+@keyframes shield-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(91, 141, 239, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 16px rgba(91, 141, 239, 0.4);
+  }
+}
+
+/* Subtle rotation on hover */
+.logo-container:hover .shield-container {
+  animation: shield-rotate 0.6s ease;
+}
+
+@keyframes shield-rotate {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(5deg) scale(1.05);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}

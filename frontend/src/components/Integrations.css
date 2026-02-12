@@ -1,0 +1,137 @@
+.integrations {
+  padding: 3rem 0;
+  background: linear-gradient(135deg, #f0f7ff 0%, #faf5ff 100%);
+}
+
+.integrations-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-align: center;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.integrations-title-highlight {
+  color: #8b5cf6;
+}
+
+.integrations-subtitle {
+  font-size: 1.125rem;
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 3rem;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.integration-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.integration-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  border-color: #8b5cf6;
+}
+
+.integration-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  border-radius: 12px;
+}
+
+.gmail-icon {
+  background: #fef2f2;
+}
+
+.outlook-icon {
+  background: #eff6ff;
+}
+
+.yahoo-icon {
+  background: #faf5ff;
+}
+
+.integration-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.integration-description {
+  color: #6b7280;
+  line-height: 1.6;
+  font-size: 0.9375rem;
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
+
+.integration-users {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #8b5cf6;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.integration-users svg {
+  stroke: #8b5cf6;
+}
+
+@media (max-width: 1024px) {
+  .integrations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .integrations-title {
+    font-size: 2rem;
+  }
+}
+
+.integration-btn {
+  margin-top: 1.5rem;
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #5b8def 0%, #9b7ee8 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(91, 141, 239, 0.3);
+}
+
+.integration-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(91, 141, 239, 0.4);
+}
+
+.integration-btn:active {
+  transform: translateY(0);
+}
