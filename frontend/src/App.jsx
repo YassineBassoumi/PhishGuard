@@ -72,7 +72,7 @@ function AppContent() {
     } else if (viewParam === 'providers') {
       setViewMode('providers');
     }
-  }, [user]);
+  }, [user, token]);
 
   const handleAnalysis = async (type, content) => {
     setIsAnalyzing(true);
