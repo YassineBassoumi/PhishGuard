@@ -3,8 +3,10 @@ PhishGuard AI - FastAPI Application
 Main application entry point
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from app.routes import analysis
 from contextlib import asynccontextmanager
 from app.middleware import rate_limit_middleware, DatabaseMonitorMiddleware
@@ -69,6 +71,19 @@ app.add_middleware(DatabaseMonitorMiddleware)
 
 # Add rate limiting middleware
 app.middleware("http")(rate_limit_middleware)
+
+# Add validation exception handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed messages"""
+    logger.error(f"Validation error on {request.method} {request.url}: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": exc.errors(),
+            "body": exc.body if hasattr(exc, 'body') else None
+        }
+    )
 
 # Include routers
 app.include_router(analysis.router, prefix="/api", tags=["API"])

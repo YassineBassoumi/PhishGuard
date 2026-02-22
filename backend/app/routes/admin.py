@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from typing import List, Optional
 import logging
+from datetime import datetime
 
 from app.models.auth_schemas import UserResponse, UserRoleUpdate, UserBanRequest
 from app.models.user_models import User
@@ -422,6 +423,9 @@ async def ban_user(
     - **reason**: Reason for banning (required)
     """
     try:
+        # Log the incoming request for debugging
+        logger.info(f"Ban request for user {user_id} with reason: {ban_request.reason}")
+        
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         
@@ -453,7 +457,6 @@ async def ban_user(
             )
         
         # Ban the user
-        from datetime import datetime
         user.is_banned = True
         user.banned_at = datetime.utcnow()
         user.banned_by = current_user.id
@@ -478,6 +481,13 @@ async def ban_user(
     
     except HTTPException:
         raise
+    except Exception as e:
+        logger.error(f"Failed to ban user: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to ban user: {str(e)}"
+        )
     except Exception as e:
         logger.error(f"Failed to ban user: {str(e)}", exc_info=True)
         await db.rollback()
