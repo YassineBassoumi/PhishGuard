@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Hero from './Hero';
 import FeaturesSection from './FeaturesSection';
 import HowItWorks from './HowItWorks';
@@ -13,11 +13,18 @@ function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
   
   console.log('HomePage render:', { isLoginModalOpen, isInternalModalOpen, internalAuthView });
   
+  // Reset to login view when external modal opens
+  useEffect(() => {
+    if (isLoginModalOpen) {
+      setInternalAuthView('login');
+    }
+  }, [isLoginModalOpen]);
+  
   // La modal est ouverte si la prop externe est true OU si l'état interne est true
   const isModalOpen = isLoginModalOpen || isInternalModalOpen;
   
-  // Dériver authView : si la modal externe est ouverte, forcer 'login', sinon utiliser l'état interne
-  const authView = isLoginModalOpen ? 'login' : internalAuthView;
+  // Use internalAuthView regardless of which modal trigger was used
+  const authView = internalAuthView;
 
   const handleOpenModal = (view) => {
     console.log('handleOpenModal called with view:', view);
@@ -28,6 +35,8 @@ function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
   const handleCloseModal = () => {
     console.log('handleCloseModal called');
     setIsInternalModalOpen(false);
+    // Reset to login view when closing
+    setInternalAuthView('login');
     if (onCloseLoginModal) {
       onCloseLoginModal();
     }
