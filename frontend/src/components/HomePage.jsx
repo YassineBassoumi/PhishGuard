@@ -11,6 +11,8 @@ function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
   const [internalAuthView, setInternalAuthView] = useState('login');
   const [isInternalModalOpen, setIsInternalModalOpen] = useState(false);
   
+  console.log('HomePage render:', { isLoginModalOpen, isInternalModalOpen, internalAuthView });
+  
   // La modal est ouverte si la prop externe est true OU si l'état interne est true
   const isModalOpen = isLoginModalOpen || isInternalModalOpen;
   
@@ -18,11 +20,13 @@ function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
   const authView = isLoginModalOpen ? 'login' : internalAuthView;
 
   const handleOpenModal = (view) => {
+    console.log('handleOpenModal called with view:', view);
     setInternalAuthView(view);
     setIsInternalModalOpen(true);
   };
 
   const handleCloseModal = () => {
+    console.log('handleCloseModal called');
     setIsInternalModalOpen(false);
     if (onCloseLoginModal) {
       onCloseLoginModal();

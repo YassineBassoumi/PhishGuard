@@ -5,6 +5,8 @@ import ForgotPassword from './ForgotPassword';
 import './AuthModal.css';
 
 function AuthModal({ isOpen, onClose, authView, onSwitchAuth }) {
+  console.log('AuthModal render:', { isOpen, authView });
+  
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';

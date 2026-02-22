@@ -2,9 +2,13 @@ import './SignupCTA.css';
 
 function SignupCTA({ onSwitchToRegister }) {
   const handleSignupClick = () => {
+    console.log('SignupCTA button clicked');
+    console.log('onSwitchToRegister:', onSwitchToRegister);
     // Ouvrir la modal d'inscription
     if (onSwitchToRegister) {
       onSwitchToRegister();
+    } else {
+      console.error('onSwitchToRegister is undefined!');
     }
   };
 
