@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useState } from 'react';
 import './Login.css';
 
 const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
@@ -210,7 +209,14 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
             <button
               type="button"
               className="link-button"
-              onClick={onSwitchToRegister}
+              onClick={() => {
+                console.log('Switching to register...');
+                if (onSwitchToRegister) {
+                  onSwitchToRegister();
+                } else {
+                  console.error('onSwitchToRegister is not defined');
+                }
+              }}
               disabled={loading}
             >
               Créer un compte
