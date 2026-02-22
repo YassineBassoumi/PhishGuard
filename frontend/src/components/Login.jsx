@@ -9,7 +9,6 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [show2FA, setShow2FA] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
