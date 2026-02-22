@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import Login from './Login';
 import Register from './Register';
+import ForgotPassword from './ForgotPassword';
 import './AuthModal.css';
 
 function AuthModal({ isOpen, onClose, authView, onSwitchAuth }) {
@@ -28,10 +29,15 @@ function AuthModal({ isOpen, onClose, authView, onSwitchAuth }) {
         </button>
         
         {authView === 'login' ? (
-          <Login onSwitchToRegister={() => onSwitchAuth('register')} />
-        ) : (
+          <Login 
+            onSwitchToRegister={() => onSwitchAuth('register')}
+            onSwitchToForgotPassword={() => onSwitchAuth('forgot')}
+          />
+        ) : authView === 'register' ? (
           <Register onSwitchToLogin={() => onSwitchAuth('login')} />
-        )}
+        ) : authView === 'forgot' ? (
+          <ForgotPassword onBack={() => onSwitchAuth('login')} />
+        ) : null}
       </div>
     </div>
   );

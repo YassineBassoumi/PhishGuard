@@ -20,7 +20,10 @@ from app.services.stats_service import stats_service
 from app.database import get_db
 from app.services.auth_service import get_current_active_user
 from app.models.user_models import User
+from app.services.notification_service import notification_service
+from datetime import datetime
 import logging
+import asyncio
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -63,6 +66,47 @@ async def analyze_email(
             recommendations=recommendations,
             user_id=current_user.id
         )
+        
+        # Send dangerous email alert if threat is high
+        if threat_level == "dangerous" and confidence >= 70:
+            try:
+                from app.database import get_db as get_notification_db
+                
+                # Extract user data before background task
+                user_id = current_user.id
+                
+                async def send_dangerous_email_notification_background():
+                    """Background task to send notification with its own DB session"""
+                    async for notification_db in get_notification_db():
+                        try:
+                            # Fetch fresh user object in this session
+                            from sqlalchemy import select
+                            from app.models.user_models import User
+                            result = await notification_db.execute(
+                                select(User).where(User.id == user_id)
+                            )
+                            fresh_user = result.scalar_one()
+                            
+                            await notification_service.send_dangerous_email_alert(
+                                db=notification_db,
+                                user=fresh_user,
+                                email_details={
+                                    'from': 'Unknown Sender',  # Extract from content if possible
+                                    'subject': content_preview[:50],
+                                    'date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                    'threat_level': threat_level.upper(),
+                                    'confidence': confidence,
+                                    'red_flags': features[:5]  # Top 5 features
+                                }
+                            )
+                        finally:
+                            await notification_db.close()
+                        break
+                
+                asyncio.create_task(send_dangerous_email_notification_background())
+                logger.info(f"Dangerous email alert queued for user {current_user.username}")
+            except Exception as e:
+                logger.error(f"Failed to queue dangerous email alert: {str(e)}")
         
         logger.info(f"Email analysis complete: {threat_level} (confidence: {confidence}%)")
         
@@ -451,17 +495,8 @@ async def analyze_progressive(
         # Now run full ML analysis
         threat_level, confidence, features, recommendations = detector.analyze_url(url)
         
-        # Save to database
-        await stats_service.save_analysis(
-            db=db,
-            analysis_type="url",
-            content_preview=url,
-            threat_level=threat_level,
-            confidence=confidence,
-            features=features,
-            recommendations=recommendations,
-            user_id=current_user.id
-        )
+        # NOTE: Do NOT save to database here - this is just for progressive indicators
+        # The main /analyze-url endpoint will save the final analysis
         
         logger.info(f"Progressive analysis complete: {threat_level} (confidence: {confidence}%)")
         

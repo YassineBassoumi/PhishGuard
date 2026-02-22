@@ -54,13 +54,6 @@ async def get_available_providers():
                 "description": "Microsoft Outlook/Hotmail",
                 "icon": "outlook",
                 "available": True
-            },
-            {
-                "id": "yahoo",
-                "name": "Yahoo Mail",
-                "description": "Yahoo Mail",
-                "icon": "yahoo",
-                "available": False  # Not yet implemented
             }
         ]
     }
@@ -110,36 +103,6 @@ async def provider_auth(provider: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate auth URL: {str(e)}"
         )
-
-
-@router.get("/outlook/callback")
-async def outlook_callback(
-    code: str = Query(...),
-    db: AsyncSession = Depends(get_db)
-):
-    """Handle Outlook OAuth callback"""
-    try:
-        from app.services.outlook_service import outlook_service
-        from datetime import datetime
-        
-        # Exchange code for tokens
-        credentials = outlook_service.exchange_code_for_token(code)
-        
-        # Convert datetime to string for JSON serialization
-        if 'token_expiry' in credentials and isinstance(credentials['token_expiry'], datetime):
-            credentials['token_expiry'] = credentials['token_expiry'].isoformat()
-        
-        # Encode credentials as URL-safe base64 to pass in URL
-        credentials_json = json.dumps(credentials)
-        credentials_encoded = base64.urlsafe_b64encode(credentials_json.encode()).decode()
-        
-        # Redirect to frontend with credentials
-        redirect_url = f"http://localhost:5173?auth=success&provider=outlook&creds={credentials_encoded}"
-        return RedirectResponse(url=redirect_url)
-    except Exception as e:
-        logger.error(f"Outlook callback failed: {str(e)}", exc_info=True)
-        error_msg = urllib.parse.quote(str(e))
-        return RedirectResponse(url=f"http://localhost:5173?auth=error&provider=outlook&message={error_msg}")
 
 
 @router.post("/emails")
@@ -295,4 +258,83 @@ async def store_provider_credentials(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to store credentials: {str(e)}"
+        )
+
+
+
+class EmailSearchRequest(BaseModel):
+    provider: str
+    q: Optional[str] = None  # General search query
+    from_email: Optional[str] = None  # Sender email/name
+    subject: Optional[str] = None  # Subject keywords
+    date_from: Optional[str] = None  # Start date (YYYY-MM-DD)
+    date_to: Optional[str] = None  # End date (YYYY-MM-DD)
+    has_attachments: Optional[bool] = None
+    max_results: Optional[int] = 100  # Increased from 50 to 100
+
+
+@router.post("/emails/search")
+async def search_emails(
+    request: EmailSearchRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search emails with advanced filters
+    
+    Supports:
+    - General search (q): Searches in subject, sender, and body
+    - Sender filter (from_email): Filter by sender email or name
+    - Subject filter (subject): Filter by subject keywords
+    - Date range (date_from, date_to): Filter by date range
+    - Attachments (has_attachments): Filter emails with/without attachments
+    """
+    try:
+        # Validate provider
+        try:
+            email_provider = EmailProvider(request.provider)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported provider: {request.provider}"
+            )
+        
+        # Build search filters
+        filters = {}
+        if request.q:
+            filters['q'] = request.q
+        if request.from_email:
+            filters['from_email'] = request.from_email
+        if request.subject:
+            filters['subject'] = request.subject
+        if request.date_from:
+            filters['date_from'] = request.date_from
+        if request.date_to:
+            filters['date_to'] = request.date_to
+        if request.has_attachments is not None:
+            filters['has_attachments'] = request.has_attachments
+        
+        # Search emails
+        result = await unified_email_service.search_emails(
+            db,
+            current_user.id,
+            email_provider,
+            filters,
+            request.max_results
+        )
+        
+        if not result['success']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get('error', 'Failed to search emails')
+            )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to search emails: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search emails: {str(e)}"
         )

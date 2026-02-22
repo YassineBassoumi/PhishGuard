@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Hero from './Hero';
 import FeaturesSection from './FeaturesSection';
 import HowItWorks from './HowItWorks';
@@ -8,24 +8,22 @@ import AuthModal from './AuthModal';
 import './HomePage.css';
 
 function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
-  const [authView, setAuthView] = useState('login');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Synchroniser avec la modal de login de la navbar
-  useEffect(() => {
-    if (isLoginModalOpen) {
-      setAuthView('login');
-      setIsModalOpen(true);
-    }
-  }, [isLoginModalOpen]);
+  const [internalAuthView, setInternalAuthView] = useState('login');
+  const [isInternalModalOpen, setIsInternalModalOpen] = useState(false);
+  
+  // La modal est ouverte si la prop externe est true OU si l'état interne est true
+  const isModalOpen = isLoginModalOpen || isInternalModalOpen;
+  
+  // Dériver authView : si la modal externe est ouverte, forcer 'login', sinon utiliser l'état interne
+  const authView = isLoginModalOpen ? 'login' : internalAuthView;
 
   const handleOpenModal = (view) => {
-    setAuthView(view);
-    setIsModalOpen(true);
+    setInternalAuthView(view);
+    setIsInternalModalOpen(true);
   };
 
   const handleCloseModal = () => {
-    setIsModalOpen(false);
+    setIsInternalModalOpen(false);
     if (onCloseLoginModal) {
       onCloseLoginModal();
     }
@@ -60,7 +58,7 @@ function HomePage({ isLoginModalOpen, onCloseLoginModal }) {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         authView={authView}
-        onSwitchAuth={setAuthView}
+        onSwitchAuth={setInternalAuthView}
       />
     </div>
   );

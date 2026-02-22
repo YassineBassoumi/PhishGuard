@@ -10,15 +10,18 @@ import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 import os
 
 from app.models.user_models import User
 from app.models.auth_schemas import TokenData
 from app.database import get_db
 
-# OAuth2 scheme
+# OAuth2 scheme for form-based login
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# HTTPBearer scheme for token-based authentication (easier for Swagger UI)
+http_bearer = HTTPBearer(auto_error=False)
 
 # JWT settings
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-09876543210")
@@ -59,7 +62,7 @@ class AuthService:
         return hashed.decode('utf-8')
     
     @staticmethod
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, jti: Optional[str] = None) -> str:
         """Create a JWT access token"""
         to_encode = data.copy()
         if expires_delta:
@@ -68,6 +71,11 @@ class AuthService:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
         to_encode.update({"exp": expire})
+        
+        # Add JWT ID for session tracking
+        if jti:
+            to_encode.update({"jti": jti})
+        
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
     
@@ -110,6 +118,7 @@ class AuthService:
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """Get current authenticated user from JWT token"""
@@ -119,11 +128,24 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    # Try to get token from HTTPBearer first (for Swagger UI), then OAuth2
+    actual_token = None
+    if credentials and credentials.credentials:
+        actual_token = credentials.credentials
+    elif token:
+        actual_token = token
+    
+    if not actual_token:
+        raise credentials_exception
+    
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(actual_token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        jti: str = payload.get("jti")  # Get JWT ID for session validation
+        
         if username is None:
             raise credentials_exception
+        
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
@@ -131,6 +153,30 @@ async def get_current_user(
     user = await AuthService.get_user_by_username(db, username=token_data.username)
     if user is None:
         raise credentials_exception
+    
+    # Validate session if JTI is present
+    if jti:
+        from app.services.session_service import session_service
+        is_valid = await session_service.validate_session(db, jti)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has been revoked or expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Update session activity
+        await session_service.update_session_activity(db, jti)
+    
+    # Check if user is banned
+    if user.is_banned:
+        ban_message = "Your account has been banned"
+        if user.ban_reason:
+            ban_message += f": {user.ban_reason}"
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ban_message
+        )
     
     return user
 

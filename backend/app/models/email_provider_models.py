@@ -3,7 +3,7 @@ Email Provider Models
 Database models for multi-provider email support
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -25,6 +25,9 @@ class EmailProvider(Base):
 class UserEmailCredential(Base):
     """User email provider credentials"""
     __tablename__ = "user_email_credentials"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'provider', name='uq_user_provider'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)

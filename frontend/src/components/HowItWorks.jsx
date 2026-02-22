@@ -35,7 +35,7 @@ Quatre étapes simples pour analyser les emails sélectionnés de vos comptes et
             </div>
             <h3 className="step-name">Connectez vos emails</h3>
             <p className="step-text">
-              Liez Gmail, Outlook ou Yahoo en quelques clics grâce à une authentification sécurisée OAuth.
+              Liez Gmail ou Outlook en quelques clics grâce à une authentification sécurisée OAuth.
             </p>
           </div>
 

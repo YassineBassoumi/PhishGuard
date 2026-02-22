@@ -7,6 +7,7 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [connectedProviders, setConnectedProviders] = useState([]);
+    const [suggestedProvider, setSuggestedProvider] = useState(null);
 
     const fetchConnectedProviders = useCallback(async () => {
         try {
@@ -27,6 +28,14 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
 
     useEffect(() => {
         fetchConnectedProviders();
+        
+        // Check for suggested provider from first login
+        const suggested = localStorage.getItem('first_login_provider');
+        if (suggested) {
+            setSuggestedProvider(suggested);
+            // Clear it after reading
+            localStorage.removeItem('first_login_provider');
+        }
     }, [fetchConnectedProviders]);
 
     const handleProviderConnect = async (provider) => {
@@ -90,20 +99,6 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
             ),
             gradient: 'outlook-gradient',
             available: true
-        },
-        {
-            id: 'yahoo',
-            name: 'Yahoo Mail',
-            description: 'Yahoo Mail',
-            icon: (
-                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                    <rect width="64" height="64" rx="8" fill="#6001D2"/>
-                    <path d="M32 16L24 32H28V44H36V32H40L32 16Z" fill="white" stroke="white" strokeWidth="2"/>
-                    <circle cx="32" cy="50" r="3" fill="white"/>
-                </svg>
-            ),
-            gradient: 'yahoo-gradient',
-            available: false
         }
     ];
 
@@ -124,11 +119,12 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
                 <div className="provider-grid">
                     {providers.map((provider) => {
                         const isConnected = connectedProviders.includes(provider.id);
+                        const isSuggested = suggestedProvider === provider.id;
                         
                         return (
                             <button
                                 key={provider.id}
-                                className={`provider-btn ${isConnected ? 'connected' : ''} ${!provider.available ? 'disabled' : ''}`}
+                                className={`provider-btn ${isConnected ? 'connected' : ''} ${!provider.available ? 'disabled' : ''} ${isSuggested ? 'suggested' : ''}`}
                                 onClick={() => provider.available && handleProviderConnect(provider.id)}
                                 disabled={loading || !provider.available}
                             >
@@ -137,6 +133,15 @@ const EmailProviderSelector = ({ onProviderConnected }) => {
                                 </div>
                                 <span className="provider-name">{provider.name}</span>
                                 <span className="provider-desc">{provider.description}</span>
+                                
+                                {isSuggested && !isConnected && (
+                                    <div className="suggested-badge">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Recommandé
+                                    </div>
+                                )}
                                 
                                 {isConnected && (
                                     <div className="connected-badge">

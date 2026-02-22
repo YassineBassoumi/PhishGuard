@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brute Force Attack Alert</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .alert-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .alert-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .alert-box h2 {
+            margin: 0 0 10px 0;
+            color: #dc2626;
+            font-size: 18px;
+        }
+        .alert-box p {
+            margin: 5px 0;
+            color: #991b1b;
+        }
+        .info-section {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .info-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #374151;
+        }
+        .info-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #6b7280;
+            min-width: 150px;
+        }
+        .info-value {
+            color: #111827;
+            word-break: break-word;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-blocked {
+            background-color: #dc2626;
+            color: white;
+        }
+        .status-detected {
+            background-color: #f59e0b;
+            color: white;
+        }
+        .usernames-list {
+            background-color: #1f2937;
+            color: #f3f4f6;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .usernames-list ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .usernames-list li {
+            margin: 5px 0;
+        }
+        .recommendations {
+            background-color: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .recommendations h3 {
+            margin: 0 0 10px 0;
+            color: #d97706;
+            font-size: 16px;
+        }
+        .recommendations ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .recommendations li {
+            margin: 5px 0;
+            color: #92400e;
+        }
+        .footer {
+            background-color: #f9fafb;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+        .priority-badge {
+            display: inline-block;
+            background-color: #dc2626;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .metric-box {
+            background-color: #fee2e2;
+            border: 2px solid #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .metric-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #dc2626;
+            margin: 0;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #991b1b;
+            margin: 5px 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="alert-icon">🚨</div>
+            <h1>Brute Force Attack Detected</h1>
+            <span class="priority-badge">CRITICAL PRIORITY</span>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="alert-box">
+                <h2>Automated Attack in Progress</h2>
+                <p>A brute force attack has been detected on your {{ app_name }} system. Multiple failed login attempts from a single IP address indicate an automated attack.</p>
+                {% if is_blocked %}
+                <p><span class="status-badge status-blocked">IP BLOCKED</span> The attacking IP has been automatically blocked for {{ block_duration_hours }} hour(s).</p>
+                {% else %}
+                <p><span class="status-badge status-detected">ATTACK DETECTED</span> The attack is being monitored.</p>
+                {% endif %}
+            </div>
+
+            <!-- Attack Metrics -->
+            <div class="metric-box">
+                <p class="metric-value">{{ failed_attempts }}</p>
+                <p class="metric-label">Failed Login Attempts in {{ window_minutes }} Minutes</p>
+            </div>
+
+            <!-- Attack Information -->
+            <div class="info-section">
+                <h3>🎯 Attack Details</h3>
+                <div class="info-row">
+                    <span class="info-label">IP Address:</span>
+                    <span class="info-value">{{ ip_address }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Location:</span>
+                    <span class="info-value">{{ location }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Detection Time:</span>
+                    <span class="info-value">{{ timestamp }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Attack Pattern:</span>
+                    <span class="info-value">{{ pattern|capitalize }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Failed Attempts:</span>
+                    <span class="info-value">{{ failed_attempts }} (Threshold: {{ threshold }})</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Time Window:</span>
+                    <span class="info-value">{{ window_minutes }} minutes</span>
+                </div>
+                {% if is_blocked %}
+                <div class="info-row">
+                    <span class="info-label">Block Status:</span>
+                    <span class="info-value">Blocked for {{ block_duration_hours }} hour(s)</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Targeted Usernames -->
+            {% if usernames_attempted %}
+            <div class="info-section">
+                <h3>👤 Targeted Usernames</h3>
+                <p>The attacker attempted to access the following accounts:</p>
+                <div class="usernames-list">
+                    <ul>
+                        {% for username in usernames_attempted %}
+                        <li>{{ username }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <p style="color: #991b1b; font-size: 14px; margin-top: 10px;">
+                    <strong>⚠️ Warning:</strong> If any of these are valid usernames, consider forcing a password reset for those accounts.
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- Recommendations -->
+            <div class="recommendations">
+                <h3>⚡ Immediate Actions Required</h3>
+                <ul>
+                    <li><strong>Verify Block Status:</strong> Confirm the IP is blocked and cannot access the system</li>
+                    <li><strong>Check Targeted Accounts:</strong> Review if any targeted usernames are valid accounts</li>
+                    <li><strong>Force Password Reset:</strong> Consider forcing password resets for targeted accounts</li>
+                    <li><strong>Review Logs:</strong> Check authentication logs for additional suspicious activity</li>
+                    <li><strong>Monitor Pattern:</strong> Watch for attacks from different IPs targeting same accounts</li>
+                    <li><strong>Update Firewall:</strong> Consider adding IP to permanent firewall block list</li>
+                    <li><strong>Enable 2FA:</strong> Encourage or enforce 2FA for all targeted accounts</li>
+                    <li><strong>Alert Users:</strong> Notify affected users about the attack attempt</li>
+                </ul>
+            </div>
+
+            <!-- System Response -->
+            <div class="info-section">
+                <h3>🛡️ Automatic System Response</h3>
+                <p>{{ app_name }} has automatically taken the following actions:</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>Logged all failed login attempts with timestamps</li>
+                    <li>Identified attack pattern as "{{ pattern }}"</li>
+                    {% if is_blocked %}
+                    <li>Blocked IP address {{ ip_address }} for {{ block_duration_hours }} hour(s)</li>
+                    <li>Prevented all further login attempts from this IP</li>
+                    {% endif %}
+                    <li>Sent critical alert to all administrators</li>
+                    <li>Recorded attack details for security audit</li>
+                </ul>
+            </div>
+
+            <!-- Impact Notice -->
+            <div class="alert-box">
+                <h2>🔒 Security Status</h2>
+                {% if is_blocked %}
+                <p><strong>Protected:</strong> The attacking IP has been blocked. No user accounts were compromised.</p>
+                {% else %}
+                <p><strong>Monitoring:</strong> The attack is being tracked. Take immediate action to block the IP if attacks continue.</p>
+                {% endif %}
+                <p>All legitimate users can continue to access the system normally.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>{{ app_name }} Security Alert</strong></p>
+            <p>This is an automated critical security alert sent to all administrators.</p>
+            <p>Detection Time: {{ timestamp }}</p>
+            <p>Server: {{ server_url }}</p>
+        </div>
+    </div>
+</body>
+</html>

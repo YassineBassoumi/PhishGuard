@@ -172,6 +172,30 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
     //     }
     // }, [emailContent, activeTab, isAnalyzing]);
 
+    // Reset indicators when URL content changes (manual deletion)
+    useEffect(() => {
+        if (activeTab === 'url' && urlContent.trim().length < 10) {
+            setUrlIndicators({
+                https: { status: 'waiting', label: 'Vérification SSL', message: '' },
+                domain: { status: 'waiting', label: 'Analyse du Domaine', message: '' },
+                keywords: { status: 'waiting', label: 'Mots-clés Suspects', message: '' },
+                structure: { status: 'waiting', label: 'Structure URL', message: '' }
+            });
+        }
+    }, [urlContent, activeTab]);
+
+    // Reset indicators when email content changes (manual deletion)
+    useEffect(() => {
+        if (activeTab === 'email' && emailContent.trim().length < 20) {
+            setEmailIndicators({
+                phishingKeywords: { status: 'waiting', label: 'Mots-clés de Phishing', message: '' },
+                urgencyLanguage: { status: 'waiting', label: 'Langage Urgent', message: '' },
+                suspiciousLinks: { status: 'waiting', label: 'Liens Suspects', message: '' },
+                credentialRequest: { status: 'waiting', label: 'Demande de Données', message: '' }
+            });
+        }
+    }, [emailContent, activeTab]);
+
     // Reset indicators when switching tabs
     useEffect(() => {
         setUrlIndicators({
@@ -337,17 +361,19 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
 
                             {/* Action buttons */}
                             <div className="form-actions-modern">
-                                <button
-                                    type="button"
-                                    className="btn-modern btn-secondary-modern"
-                                    onClick={onSwitchToGmail}
-                                    disabled={isAnalyzing}
-                                >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path d="M3 8L10.89 13.26C11.25 13.48 11.75 13.48 12.11 13.26L20 8M5 19H19C20.1 19 21 18.1 21 17V7C21 5.9 20.1 5 19 5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19Z" strokeWidth="2" strokeLinecap="round" />
-                                    </svg>
-                                    Sélectionner autre Email
-                                </button>
+                                {activeTab === 'email' && (
+                                    <button
+                                        type="button"
+                                        className="btn-modern btn-secondary-modern"
+                                        onClick={onSwitchToGmail}
+                                        disabled={isAnalyzing}
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path d="M3 8L10.89 13.26C11.25 13.48 11.75 13.48 12.11 13.26L20 8M5 19H19C20.1 19 21 18.1 21 17V7C21 5.9 20.1 5 19 5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19Z" strokeWidth="2" strokeLinecap="round" />
+                                        </svg>
+                                        Sélectionner un Email
+                                    </button>
+                                )}
 
                                 <button
                                     type="button"

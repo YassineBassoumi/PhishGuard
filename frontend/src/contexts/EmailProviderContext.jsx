@@ -127,7 +127,7 @@ export const EmailProviderProvider = ({ children }) => {
         if (!user) return;
 
         const userId = user.id || user.username;
-        const providers = ['gmail', 'outlook', 'yahoo'];
+        const providers = ['gmail', 'outlook'];
         
         providers.forEach(provider => {
             const stored = localStorage.getItem(`${provider}_credentials_${userId}`);
@@ -234,6 +234,32 @@ export const EmailProviderProvider = ({ children }) => {
         }
     };
 
+    const searchEmails = async (provider, filters, maxResults = 50) => {
+        try {
+            const response = await fetch('http://localhost:8000/api/email/emails/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    provider: provider || selectedProvider,
+                    ...filters,
+                    max_results: maxResults
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to search emails');
+            }
+
+            return await response.json();
+        } catch (err) {
+            console.error('Failed to search emails:', err);
+            throw err;
+        }
+    };
+
     const value = {
         selectedProvider,
         setSelectedProvider,
@@ -242,7 +268,8 @@ export const EmailProviderProvider = ({ children }) => {
         fetchEmails,
         getEmailContent,
         disconnectProvider,
-        getProviderCredentials
+        getProviderCredentials,
+        searchEmails
     };
 
     return (

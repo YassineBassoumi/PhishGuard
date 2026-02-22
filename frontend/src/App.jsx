@@ -1,20 +1,30 @@
 import React, { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { EmailProviderProvider, useEmailProvider } from './contexts/EmailProviderContext';
 import Sidebar from './components/Sidebar';
 import LoadingScreen from './components/LoadingScreen';
 import AuthView from './components/AuthView';
+import ResetPassword from './components/ResetPassword';
+import VerifyEmail from './components/VerifyEmail';
+import AccountSecured from './pages/AccountSecured';
+import NotificationsPage from './pages/NotificationsPage';
+import NotificationCenter from './components/NotificationCenter';
 import MainContent from './components/MainContent';
 import Footer from './components/Footer';
+import { AdminPanel } from './components/admin/AdminPanel';
+import WelcomeRedirect from './components/WelcomeRedirect';
 
 function AppContent() {
-  const { isAuthenticated, loading: authLoading, token, user } = useAuth();
+  const { isAuthenticated, loading: authLoading, token, user, logout } = useAuth();
   const { connectedProviders } = useEmailProvider();
   const [results, setResults] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [viewMode, setViewMode] = useState('manual');
   const [bulkEmails, setBulkEmails] = useState(null);
+  const [showWelcomeRedirect, setShowWelcomeRedirect] = useState(false);
+  const [redirectProvider, setRedirectProvider] = useState(null);
 
   // Check for OAuth callback and switch to email view
   React.useEffect(() => {
@@ -24,7 +34,40 @@ function AppContent() {
     const authSuccess = urlParams.get('auth');
     const viewParam = urlParams.get('view');
     
-    if (authSuccess === 'success') {
+    // Check for first login
+    const isFirstLogin = localStorage.getItem('is_first_login');
+    const suggestedProvider = localStorage.getItem('first_login_provider');
+    
+    if (isFirstLogin === 'true' && suggestedProvider) {
+      // Clear the first login flag
+      localStorage.removeItem('is_first_login');
+      
+      // Redirect to email provider setup
+      setViewMode('providers');
+      setRedirectProvider(suggestedProvider);
+      setShowWelcomeRedirect(true);
+      
+      // Auto-trigger OAuth flow after countdown
+      setTimeout(async () => {
+        try {
+          // Get auth URL from backend
+          const response = await fetch(`http://localhost:8000/api/email/${suggestedProvider}/auth`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Redirect to OAuth
+            window.location.href = data.auth_url;
+          }
+        } catch (error) {
+          console.error('Auto-connect failed:', error);
+          setShowWelcomeRedirect(false);
+        }
+      }, 3000); // 3 second countdown
+    } else if (authSuccess === 'success') {
       setViewMode('email');
     } else if (viewParam === 'providers') {
       setViewMode('providers');
@@ -103,6 +146,10 @@ function AppContent() {
     setResults(null);
   };
 
+  const handleBackToApp = () => {
+    setViewMode('manual');
+  };
+
   if (authLoading) {
     return <LoadingScreen />;
   }
@@ -111,8 +158,29 @@ function AppContent() {
     return <AuthView />;
   }
 
+  // Show admin panel if user selected admin view
+  if (viewMode === 'admin') {
+    return (
+      <div className="admin-panel-root">
+        <AdminPanel 
+          user={user}
+          token={token}
+          onLogout={logout}
+          onBackToApp={handleBackToApp}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app app-with-sidebar">
+      {showWelcomeRedirect && redirectProvider && (
+        <WelcomeRedirect 
+          provider={redirectProvider}
+          onClose={() => setShowWelcomeRedirect(false)}
+        />
+      )}
+      
       <Sidebar 
         viewMode={viewMode}
         onViewChange={handleViewChange}
@@ -123,7 +191,7 @@ function AppContent() {
           <h1 className="main-greeting">
             Bonjour, {user?.email?.split('@')[0] || 'User'} 👋
           </h1>
-          
+          <NotificationCenter />
         </div>
         <MainContent 
           viewMode={viewMode}
@@ -146,7 +214,13 @@ function App() {
   return (
     <AuthProvider>
       <EmailProviderProvider>
-        <AppContent />
+        <Routes>
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/account-secured" element={<AccountSecured />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/*" element={<AppContent />} />
+        </Routes>
       </EmailProviderProvider>
     </AuthProvider>
   );

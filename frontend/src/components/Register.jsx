@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
 import './Login.css';
 
 const Register = ({ onSwitchToLogin }) => {
@@ -10,6 +11,8 @@ const Register = ({ onSwitchToLogin }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
   const { register } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -22,8 +25,8 @@ const Register = ({ onSwitchToLogin }) => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères');
+    if (password.length < 8) {
+      setError('Le mot de passe doit contenir au moins 8 caractères');
       return;
     }
 
@@ -36,10 +39,58 @@ const Register = ({ onSwitchToLogin }) => {
     const result = await register(email, username, password, fullName);
     setLoading(false);
 
-    if (!result.success) {
+    if (result.success) {
+      setRegistrationSuccess(true);
+      setRegisteredEmail(email);
+    } else {
       setError(result.error || 'Échec de l\'inscription');
     }
   };
+
+  if (registrationSuccess) {
+    return (
+      <div className="auth-container fade-in-up">
+        <div className="glass-card auth-card">
+          <div className="success-registration">
+            <div className="success-icon-large">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M3 8L10.89 13.26C11.25 13.48 11.75 13.48 12.11 13.26L20 8M5 19H19C20.1 19 21 18.1 21 17V7C21 5.9 20.1 5 19 5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19Z" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <h2 className="success-title">Vérifiez votre Email!</h2>
+            <p className="success-message">
+              Un email de vérification a été envoyé à <strong>{registeredEmail}</strong>
+            </p>
+            <div className="info-box-register">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                <line x1="12" y1="16" x2="12" y2="12" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="12" y1="8" x2="12.01" y2="8" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <div>
+                <p className="info-title-register">Prochaines étapes:</p>
+                <ul className="info-list-register">
+                  <li>Vérifiez votre boîte de réception</li>
+                  <li>Cliquez sur le lien de vérification</li>
+                  <li>Connectez-vous à votre compte</li>
+                </ul>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-full"
+              onClick={onSwitchToLogin}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M19 12H5M12 19L5 12L12 5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Retour à la Connexion
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container fade-in-up">
@@ -125,9 +176,9 @@ const Register = ({ onSwitchToLogin }) => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               autoComplete="new-password"
-              minLength={6}
+              minLength={8}
             />
-            <p className="input-hint">Minimum 6 caractères</p>
+            <PasswordStrengthIndicator password={password} />
           </div>
 
           <div className="form-group">
@@ -137,13 +188,35 @@ const Register = ({ onSwitchToLogin }) => {
             <input
               id="confirmPassword"
               type="password"
-              className="input"
+              className={`input ${
+                confirmPassword && password === confirmPassword ? 'password-match' : 
+                confirmPassword && password !== confirmPassword ? 'password-mismatch' : ''
+              }`}
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
               autoComplete="new-password"
             />
+            {confirmPassword && (
+              <div className={`password-match-indicator ${password === confirmPassword ? 'match' : 'mismatch'}`}>
+                {password === confirmPassword ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M20 6L9 17L4 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span>Les mots de passe correspondent</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M18 6L6 18M6 6L18 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span>Les mots de passe ne correspondent pas</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <button

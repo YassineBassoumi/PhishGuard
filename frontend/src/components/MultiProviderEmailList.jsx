@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import './EmailList.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useEmailProvider } from '../contexts/EmailProviderContext';
+import EmailSearchBar from './EmailSearchBar';
 
 const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
     const { token } = useAuth();
-    const { selectedProvider, connectedProviders, setSelectedProvider } = useEmailProvider();
+    const { selectedProvider, connectedProviders, setSelectedProvider, searchEmails } = useEmailProvider();
     const [emails, setEmails] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [selectedEmailId, setSelectedEmailId] = useState(null);
     const [selectedEmails, setSelectedEmails] = useState([]);
     const [multiSelectMode, setMultiSelectMode] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchActive, setSearchActive] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (selectedProvider && connectedProviders.includes(selectedProvider)) {
@@ -148,14 +152,53 @@ const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
         setSelectedEmails([]);
     };
 
+    const handleSearch = async (filters) => {
+        if (!selectedProvider) return;
+        
+        setIsSearching(true);
+        setError(null);
+        setSearchActive(true);
+        setSearchQuery(filters.q || '');
+
+        try {
+            const result = await searchEmails(selectedProvider, filters);
+            
+            if (result.success) {
+                setEmails(result.emails || []);
+            } else {
+                throw new Error(result.error || 'Search failed');
+            }
+        } catch (err) {
+            setError(err.message);
+            setEmails([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleClearSearch = () => {
+        setSearchActive(false);
+        setSearchQuery('');
+        fetchEmails();
+    };
+
+    const highlightText = (text, query) => {
+        if (!query || !text) return text;
+        
+        const parts = text.split(new RegExp(`(${query})`, 'gi'));
+        return parts.map((part, index) => 
+            part.toLowerCase() === query.toLowerCase() ? 
+                <mark key={index} className="highlight">{part}</mark> : 
+                part
+        );
+    };
+
     const getProviderIcon = (provider) => {
         switch(provider) {
             case 'gmail':
                 return '📧';
             case 'outlook':
                 return '📨';
-            case 'yahoo':
-                return '📬';
             default:
                 return '✉️';
         }
@@ -228,14 +271,21 @@ const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
                             </svg>
                             {multiSelectMode ? 'Mode Sélection' : 'Sélection Multiple'}
                         </button>
-                        <button className="btn btn-secondary btn-sm" onClick={fetchEmails}>
+                        <button className="btn btn-secondary btn-sm" onClick={searchActive ? handleClearSearch : fetchEmails}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <path d="M21.5 2V6M21.5 6H17.5M21.5 6L18.5 3C17.2 1.8 15.5 1 13.5 1C9.4 1 6 4.4 6 8.5C6 12.6 9.4 16 13.5 16C16.8 16 19.6 13.8 20.5 10.8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
-                            Actualiser
+                            {searchActive ? 'Réinitialiser' : 'Actualiser'}
                         </button>
                     </div>
                 </div>
+
+                {/* Search Bar */}
+                <EmailSearchBar 
+                    onSearch={handleSearch}
+                    onClear={handleClearSearch}
+                    loading={isSearching}
+                />
 
                 {multiSelectMode && (
                     <div className="multi-select-toolbar">
@@ -276,10 +326,20 @@ const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
 
                 {emails.length === 0 ? (
                     <div className="empty-state">
-                        <p>Aucun email trouvé</p>
+                        <p>{searchActive ? 'Aucun email trouvé pour cette recherche' : 'Aucun email trouvé'}</p>
+                        {searchActive && (
+                            <button className="btn btn-secondary btn-sm" onClick={handleClearSearch}>
+                                Afficher tous les emails
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="email-list">
+                        {searchActive && (
+                            <div className="search-results-info">
+                                <span>{emails.length} résultat{emails.length !== 1 ? 's' : ''} trouvé{emails.length !== 1 ? 's' : ''}</span>
+                            </div>
+                        )}
                         {emails.map((email) => {
                             const isSelected = selectedEmails.some(e => e.id === email.id);
                             return (
@@ -300,11 +360,17 @@ const MultiProviderEmailList = ({ onSelectEmail, onSelectMultiple }) => {
                                     )}
                                     <div className="email-item-content">
                                         <div className="email-item-header">
-                                            <span className="email-from">{email.from}</span>
+                                            <span className="email-from">
+                                                {searchActive && searchQuery ? highlightText(email.from, searchQuery) : email.from}
+                                            </span>
                                             <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
                                         </div>
-                                        <div className="email-subject">{email.subject}</div>
-                                        <div className="email-snippet">{email.snippet}</div>
+                                        <div className="email-subject">
+                                            {searchActive && searchQuery ? highlightText(email.subject, searchQuery) : email.subject}
+                                        </div>
+                                        <div className="email-snippet">
+                                            {searchActive && searchQuery ? highlightText(email.snippet, searchQuery) : email.snippet}
+                                        </div>
                                     </div>
                                 </div>
                             );

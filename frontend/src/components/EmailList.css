@@ -401,3 +401,51 @@
         font-size: 0.8125rem;
     }
 }
+
+.search-results-info {
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-results-info span {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #667eea;
+}
+
+/* Search Highlighting */
+.highlight {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    color: #1a1a1a;
+    font-weight: 700;
+    padding: 0.1rem 0.2rem;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(255, 215, 0, 0.3);
+}
+
+.email-from .highlight,
+.email-subject .highlight,
+.email-snippet .highlight {
+    animation: highlightPulse 0.5s ease-in-out;
+}
+
+@keyframes highlightPulse {
+    0% {
+        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+        transform: scale(1);
+    }
+    50% {
+        background: linear-gradient(135deg, #ffed4e 0%, #ffd700 100%);
+        transform: scale(1.05);
+    }
+    100% {
+        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+        transform: scale(1);
+    }
+}

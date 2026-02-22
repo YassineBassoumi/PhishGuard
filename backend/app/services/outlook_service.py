@@ -214,6 +214,111 @@ class OutlookService:
         except Exception as e:
             logger.error(f"Failed to get Outlook email content: {str(e)}", exc_info=True)
             raise
+    
+    def search_emails(self, credentials_dict: Dict, filters: Dict, max_results: int = 100) -> List[Dict]:
+        """
+        Search emails using Microsoft Graph API search
+        
+        Args:
+            credentials_dict: Outlook OAuth credentials
+            filters: Search filters dict with keys:
+                - q: General search query
+                - from_email: Sender email or name
+                - subject: Subject keywords
+                - date_from: Start date (YYYY-MM-DD)
+                - date_to: End date (YYYY-MM-DD)
+                - has_attachments: Boolean
+            max_results: Maximum number of results
+            
+        Returns:
+            List of matching emails
+        """
+        try:
+            access_token = credentials_dict.get("token")
+            headers = {'Authorization': f'Bearer {access_token}'}
+            
+            # Build Microsoft Graph filter query
+            filter_parts = []
+            
+            # From filter
+            if filters.get('from_email'):
+                from_email = filters['from_email'].replace("'", "''")  # Escape quotes
+                filter_parts.append(f"from/emailAddress/address eq '{from_email}' or contains(from/emailAddress/name, '{from_email}')")
+            
+            # Subject filter
+            if filters.get('subject'):
+                subject = filters['subject'].replace("'", "''")
+                filter_parts.append(f"contains(subject, '{subject}')")
+            
+            # Date range filters
+            if filters.get('date_from'):
+                date_from = f"{filters['date_from']}T00:00:00Z"
+                filter_parts.append(f"receivedDateTime ge {date_from}")
+            
+            if filters.get('date_to'):
+                date_to = f"{filters['date_to']}T23:59:59Z"
+                filter_parts.append(f"receivedDateTime le {date_to}")
+            
+            # Attachment filter
+            if filters.get('has_attachments') is not None:
+                has_attachments = 'true' if filters['has_attachments'] else 'false'
+                filter_parts.append(f"hasAttachments eq {has_attachments}")
+            
+            # Build URL with filters
+            url = f"https://graph.microsoft.com/v1.0/me/messages?$top={max_results}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments&$orderby=receivedDateTime desc"
+            
+            if filter_parts:
+                filter_query = ' and '.join(filter_parts)
+                url += f"&$filter={filter_query}"
+            
+            # For general search (q), use Microsoft Graph search endpoint
+            if filters.get('q'):
+                search_query = filters['q']
+                url = f"https://graph.microsoft.com/v1.0/me/messages?$top={max_results}&$search=\"{search_query}\"&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments&$orderby=receivedDateTime desc"
+                
+                # Combine with filters if present
+                if filter_parts:
+                    filter_query = ' and '.join(filter_parts)
+                    url += f"&$filter={filter_query}"
+            
+            logger.info(f"Outlook search URL: {url}")
+            
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 401:
+                raise Exception("Token expired")
+            
+            response.raise_for_status()
+            
+            emails = response.json().get('value', [])
+            logger.info(f"Found {len(emails)} emails matching search criteria")
+            
+            email_list = []
+            for email in emails:
+                from_data = email.get('from', {}).get('emailAddress', {})
+                
+                # Parse date to YYYY-MM-DD format
+                date_str = email.get('receivedDateTime', '')
+                try:
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    date = date_obj.strftime('%Y-%m-%d')
+                except:
+                    date = date_str
+                
+                email_list.append({
+                    'id': email.get('id'),
+                    'subject': email.get('subject', 'No Subject'),
+                    'from': from_data.get('address', 'Unknown'),
+                    'date': date,
+                    'snippet': email.get('bodyPreview', ''),
+                    'has_attachments': email.get('hasAttachments', False)
+                })
+            
+            return email_list
+            
+        except Exception as e:
+            logger.error(f"Failed to search Outlook emails: {str(e)}", exc_info=True)
+            raise
 
 
 # Singleton instance

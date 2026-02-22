@@ -16,23 +16,42 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load token from localStorage on mount
+  // Load token from localStorage on mount and validate it
   useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
-    
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (err) {
-        console.error('Failed to parse stored user:', err);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+    const validateToken = async () => {
+      const storedToken = localStorage.getItem('auth_token');
+      const storedUser = localStorage.getItem('auth_user');
+      
+      if (storedToken && storedUser) {
+        try {
+          // Validate token by calling /me endpoint
+          const response = await fetch('http://localhost:8000/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${storedToken}`
+            }
+          });
+          
+          if (response.ok) {
+            // Token is valid
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+          } else {
+            // Token is invalid, clear it
+            console.log('Stored token is invalid, clearing...');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+          }
+        } catch (err) {
+          console.error('Failed to validate token:', err);
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        }
       }
-    }
+      
+      setLoading(false);
+    };
     
-    setLoading(false);
+    validateToken();
   }, []);
 
   const login = async (username, password) => {
@@ -60,10 +79,15 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('auth_token', data.access_token);
       localStorage.setItem('auth_user', JSON.stringify(data.user));
       
+      // Store first login info for redirect
+      if (data.is_first_login && data.suggested_provider) {
+        localStorage.setItem('first_login_provider', data.suggested_provider);
+      }
+      
       setToken(data.access_token);
       setUser(data.user);
       
-      return { success: true };
+      return { success: true, isFirstLogin: data.is_first_login, suggestedProvider: data.suggested_provider };
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
@@ -92,14 +116,9 @@ export const AuthProvider = ({ children }) => {
 
       const data = await response.json();
       
-      // Store token and user
-      localStorage.setItem('auth_token', data.access_token);
-      localStorage.setItem('auth_user', JSON.stringify(data.user));
-      
-      setToken(data.access_token);
-      setUser(data.user);
-      
-      return { success: true };
+      // Registration successful - email verification required
+      // Don't store token or user, just return success
+      return { success: true, data };
     } catch (error) {
       console.error('Registration error:', error);
       return { success: false, error: error.message };
@@ -117,7 +136,7 @@ export const AuthProvider = ({ children }) => {
     // Remove user-specific provider credentials
     if (currentUser) {
       const userId = currentUser.id || currentUser.username;
-      const providers = ['gmail', 'outlook', 'yahoo'];
+      const providers = ['gmail', 'outlook'];
       
       providers.forEach(provider => {
         localStorage.removeItem(`${provider}_credentials_${userId}`);
@@ -133,6 +152,24 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = async (updates) => {
     try {
+      // If updates is empty, just fetch fresh user data
+      if (Object.keys(updates).length === 0) {
+        const response = await fetch('http://localhost:8000/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data');
+        }
+        
+        const data = await response.json();
+        localStorage.setItem('auth_user', JSON.stringify(data));
+        setUser(data);
+        return { success: true };
+      }
+      
       const response = await fetch('http://localhost:8000/api/auth/me', {
         method: 'PUT',
         headers: {

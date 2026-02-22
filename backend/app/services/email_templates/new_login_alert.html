@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            color: #1f2937;
+            font-size: 24px;
+            margin: 0 0 10px 0;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        .login-details {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .login-details p {
+            margin: 8px 0;
+        }
+        .login-details strong {
+            color: #1e40af;
+        }
+        .action-buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .button {
+            display: inline-block;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 10px 5px;
+        }
+        .button-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .button-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        .security-tip {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .security-tip h3 {
+            color: #92400e;
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">🔐</div>
+            <h1>New Login Detected</h1>
+            <p class="subtitle">We detected a new login to your PhishGuard account</p>
+        </div>
+
+        <p>Hi <strong>{{ username }}</strong>,</p>
+
+        <p>We detected a new login to your PhishGuard account. If this was you, you can safely ignore this email.</p>
+
+        <div class="login-details">
+            <p><strong>Device:</strong> {{ device }}</p>
+            <p><strong>Browser:</strong> {{ browser }}</p>
+            <p><strong>Location:</strong> {{ location }}</p>
+            <p><strong>IP Address:</strong> {{ ip_address }}</p>
+            <p><strong>Time:</strong> {{ login_time }}</p>
+        </div>
+
+        <p style="text-align: center; font-size: 18px; font-weight: bold; margin: 30px 0;">
+            Was this you?
+        </p>
+
+        <div class="action-buttons">
+            <a href="{{ confirm_url }}" class="button button-primary">✅ Yes, this was me</a>
+            <br>
+            <a href="{{ secure_url }}" class="button button-danger">🚫 No, secure my account</a>
+        </div>
+
+        <div class="security-tip">
+            <h3>💡 Security Tip</h3>
+            <p>If you didn't make this login, click the "Secure my account" button immediately. We'll help you:</p>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Change your password</li>
+                <li>Log out all other sessions</li>
+                <li>Enable two-factor authentication</li>
+            </ul>
+        </div>
+
+        <p style="margin-top: 30px; color: #666; font-size: 14px;">
+            <strong>Stay secure!</strong> Always verify login notifications and enable two-factor authentication for extra protection.
+        </p>
+
+        <div class="footer">
+            <p>This is an automated security notification from PhishGuard AI</p>
+            <p>You're receiving this because someone logged into your account</p>
+            <p>© 2026 PhishGuard AI. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

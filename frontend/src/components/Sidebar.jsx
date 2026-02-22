@@ -52,6 +52,20 @@ function Sidebar({ viewMode, onViewChange, user }) {
     }
   ];
 
+  // Add admin panel link for admins and superadmins
+  if (user && (user.role === 'ADMIN' || user.role === 'SUPERADMIN')) {
+    menuItems.push({
+      id: 'admin',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M12 15C15.866 15 19 11.866 19 8C19 4.13401 15.866 1 12 1C8.13401 1 5 4.13401 5 8C5 11.866 8.13401 15 12 15Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M8.21 13.89L7 23L12 20L17 23L15.79 13.88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      label: 'Admin Panel'
+    });
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -74,11 +88,18 @@ function Sidebar({ viewMode, onViewChange, user }) {
       <div className="sidebar-footer">
         <div className="sidebar-user">
           <div className="sidebar-user-avatar">
-            <span>{user?.email?.[0]?.toUpperCase() || 'U'}</span>
+            {user?.profile_picture ? (
+              <img 
+                src={`http://localhost:8000/api/profile/picture/${user.profile_picture}`} 
+                alt="Profile"
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span>{user?.email?.[0]?.toUpperCase() || 'U'}</span>
+            )}
           </div>
           <div className="sidebar-user-info">
             <div className="sidebar-user-name">{user?.email?.split('@')[0] || 'User'}</div>
-            <div className="sidebar-user-role">Admin Sécurité</div>
           </div>
         </div>
       </div>
