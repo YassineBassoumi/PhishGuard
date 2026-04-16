@@ -189,7 +189,7 @@ function AppContent() {
       <main className="main-content-wrapper">
         <div className="main-header">
           <h1 className="main-greeting">
-            Bonjour, {user?.email?.split('@')[0] || 'User'} 👋
+            Bonjour, {user?.username || user?.full_name || 'User'} 👋
           </h1>
           <NotificationCenter />
         </div>

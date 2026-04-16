@@ -95,11 +95,11 @@ function Sidebar({ viewMode, onViewChange, user }) {
                 style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
               />
             ) : (
-              <span>{user?.email?.[0]?.toUpperCase() || 'U'}</span>
+              <span>{user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}</span>
             )}
           </div>
           <div className="sidebar-user-info">
-            <div className="sidebar-user-name">{user?.email?.split('@')[0] || 'User'}</div>
+            <div className="sidebar-user-name">{user?.username || user?.full_name || 'User'}</div>
           </div>
         </div>
       </div>

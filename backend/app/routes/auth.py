@@ -31,8 +31,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     
     - **email**: Valid email address
     - **username**: Unique username (3-50 characters)
-    - **password**: Password (minimum 6 characters)
-    - **full_name**: Optional full name
+    - **password**: Password (minimum 8 characters)
     
     Sends verification email - user must verify before logging in
     """
@@ -58,8 +57,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             db=db,
             email=user_data.email,
             username=user_data.username,
-            password=user_data.password,
-            full_name=user_data.full_name
+            password=user_data.password
         )
         
         await db.flush()
@@ -178,7 +176,7 @@ async def login(
             
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
+                detail="Nom d'utilisateur ou mot de passe incorrect",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
@@ -383,9 +381,15 @@ async def update_current_user(
                 )
             current_user.email = user_update.email
         
-        # Update full name if provided
-        if user_update.full_name is not None:
-            current_user.full_name = user_update.full_name
+        # Update username if provided
+        if user_update.username and user_update.username != current_user.username:
+            existing_username = await auth_service.get_user_by_username(db, user_update.username)
+            if existing_username:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+            current_user.username = user_update.username
         
         # Update password if provided
         if user_update.password:

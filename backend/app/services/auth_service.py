@@ -102,13 +102,12 @@ class AuthService:
         return user
     
     @staticmethod
-    async def create_user(db: AsyncSession, email: str, username: str, password: str, full_name: Optional[str] = None) -> User:
+    async def create_user(db: AsyncSession, email: str, username: str, password: str) -> User:
         """Create a new user"""
         hashed_password = AuthService.get_password_hash(password)
         user = User(
             email=email,
             username=username,
-            full_name=full_name,
             hashed_password=hashed_password
         )
         db.add(user)

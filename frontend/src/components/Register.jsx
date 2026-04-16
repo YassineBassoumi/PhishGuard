@@ -6,7 +6,6 @@ import './Login.css';
 const Register = ({ onSwitchToLogin }) => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
-  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,7 +35,7 @@ const Register = ({ onSwitchToLogin }) => {
     }
 
     setLoading(true);
-    const result = await register(email, username, password, fullName);
+    const result = await register(email, username, password);
     setLoading(false);
 
     if (result.success) {
@@ -144,22 +143,6 @@ const Register = ({ onSwitchToLogin }) => {
               autoComplete="username"
               minLength={3}
               maxLength={50}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="fullName" className="form-label">
-              Nom complet
-            </label>
-            <input
-              id="fullName"
-              type="text"
-              className="input"
-              placeholder="John Doe"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              disabled={loading}
-              autoComplete="name"
             />
           </div>
 

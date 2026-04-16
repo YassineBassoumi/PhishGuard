@@ -19,7 +19,6 @@ class UserBase(BaseModel):
     """Base user schema"""
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
-    full_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -31,7 +30,6 @@ class UserCreate(UserBase):
             "example": {
                 "email": "user@example.com",
                 "username": "johndoe",
-                "full_name": "John Doe",
                 "password": "securepassword123"
             }
         }
@@ -88,7 +86,7 @@ class TokenData(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for user update"""
     email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
     old_password: Optional[str] = None  # Required when changing password
     password: Optional[str] = Field(None, min_length=8, max_length=72)
     
@@ -96,7 +94,7 @@ class UserUpdate(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "newemail@example.com",
-                "full_name": "John Updated Doe",
+                "username": "johndoe_updated",
                 "old_password": "currentpassword123",
                 "password": "newsecurepassword123"
             }

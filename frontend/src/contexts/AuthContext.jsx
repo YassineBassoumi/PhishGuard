@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (email, username, password, fullName) => {
+  const register = async (email, username, password) => {
     try {
       const response = await fetch('http://localhost:8000/api/auth/register', {
         method: 'POST',
@@ -104,8 +104,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({
           email,
           username,
-          password,
-          full_name: fullName || null
+          password
         })
       });
 

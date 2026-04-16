@@ -13,7 +13,7 @@ const UserProfile = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [email, setEmail] = useState(user?.email || '');
-  const [fullName, setFullName] = useState(user?.full_name || '');
+  const [username, setUsername] = useState(user?.username || '');
   const [oldPassword, setOldPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,7 +45,7 @@ const UserProfile = () => {
 
     const updates = {};
     if (email !== user.email) updates.email = email;
-    if (fullName !== user.full_name) updates.full_name = fullName;
+    if (username !== user.username) updates.username = username;
     if (password) {
       updates.old_password = oldPassword;
       updates.password = password;
@@ -77,7 +77,7 @@ const UserProfile = () => {
   const handleCancel = () => {
     setIsEditing(false);
     setEmail(user?.email || '');
-    setFullName(user?.full_name || '');
+    setUsername(user?.username || '');
     setOldPassword('');
     setPassword('');
     setConfirmPassword('');
@@ -237,11 +237,12 @@ const UserProfile = () => {
                     <div className="info-item-new">
                       <label className="info-label-new">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M12 14C8.13401 14 5 17.134 5 21H19C19 17.134 15.866 14 12 14Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
-                        Nom Complet
+                        Nom d'utilisateur
                       </label>
-                      <p className="info-value-new">{user.full_name || 'Non renseigné'}</p>
+                      <p className="info-value-new">{user.username}</p>
                     </div>
 
                     <div className="info-item-new">
@@ -310,20 +311,23 @@ const UserProfile = () => {
                   </div>
 
                   <div className="form-group-new">
-                    <label htmlFor="fullName" className="form-label-new">
+                    <label htmlFor="username" className="form-label-new">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M12 14C8.13401 14 5 17.134 5 21H19C19 17.134 15.866 14 12 14Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      Nom Complet
+                      Nom d'utilisateur
                     </label>
                     <input
-                      id="fullName"
+                      id="username"
                       type="text"
                       className="input-new"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
                       disabled={loading}
-                      placeholder="Votre nom complet"
+                      placeholder="Votre nom d'utilisateur"
+                      minLength={3}
+                      maxLength={50}
                     />
                   </div>
 
