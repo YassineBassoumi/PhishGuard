@@ -164,9 +164,15 @@ const ResultsDisplay = ({ results, isAnalyzing }) => {
                 {results.recommendations && results.recommendations.length > 0 && (
                     <div className="glass-card recommendations-card">
                         <div className="card-header">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M12 9V11M12 15H12.01M5.07183 19H18.9282C20.4678 19 21.4301 17.3333 20.6603 16L13.7321 4C12.9623 2.66667 11.0377 2.66667 10.2679 4L3.33975 16C2.56995 17.3333 3.53223 19 5.07183 19Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
+                            {results.threatLevel === 'safe' ? (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M12 9V11M12 15H12.01M5.07183 19H18.9282C20.4678 19 21.4301 17.3333 20.6603 16L13.7321 4C12.9623 2.66667 11.0377 2.66667 10.2679 4L3.33975 16C2.56995 17.3333 3.53223 19 5.07183 19Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            )}
                             <h3 className="card-title">Recommandations</h3>
                         </div>
                         <ul className="recommendations-list-modern">

@@ -53,15 +53,17 @@ def generate_recommendations(threat_level: str, is_url: bool = False) -> List[st
     else:  # safe
         if is_url:
             recommendations = [
-                "URL appears legitimate",
-                "Always verify you're on the correct website after visiting",
-                "Check for HTTPS and valid certificates"
+                "✓ This URL appears to be legitimate and safe to visit",
+                "✓ No suspicious patterns or phishing indicators detected",
+                "✓ The domain structure looks normal and trustworthy",
+                "Always ensure you see HTTPS and a valid certificate when visiting"
             ]
         else:
             recommendations = [
-                "Email appears legitimate",
-                "Continue to verify sender identity for important requests",
-                "Stay vigilant for any unusual content"
+                "✓ This email appears to be legitimate",
+                "✓ No phishing indicators or suspicious content detected",
+                "✓ The sender and content seem trustworthy",
+                "Continue to stay vigilant with unexpected requests"
             ]
     
     return recommendations
