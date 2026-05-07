@@ -18,15 +18,10 @@
 
 ## Conventions de notation
 
-- **Tables** : rectangles avec en-tête bleu foncé et nom en `snake_case`.
-- **Clé primaire (PK)** : 🔑 icône, ligne en fond crème, identifiant souligné.
-- **Clé étrangère (FK)** : 🔗 icône, ligne en fond bleu clair, flèche vers la PK référencée.
-- **Cardinalité graphique** : extrémité « patte d'oie » (crow's foot) côté `n`, simple barre côté `1`.
-- **Notation textuelle classique** :
-  ```
-  table(#pk, attr1, attr2, #fk_xxx → table_cible.pk)
-  ```
-  où `#` indique une clé (PK ou FK).
+- **Tables** : nom en `snake_case`, énumération des attributs entre parenthèses.
+- **Clé primaire (PK)** : déclarée explicitement avec son type logique.
+- **Clé étrangère (FK)** : listée dans la rubrique `Relations` avec la table référencée.
+- **Contraintes** : domaine de valeurs, unicité, nullabilité — listées dans la rubrique `Contraintes`.
 
 ---
 
@@ -43,119 +38,105 @@
 
 ## Description des relations (6)
 
-### 1. `utilisateur`
+### 1. utilisateur
 ```
-utilisateur(#id_utilisateur, email, username, role)
+(id_utilisateur, email, username, role)
 ```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **id_utilisateur** (PK) | INT | Identifiant interne |
-| email | VARCHAR | Unique |
-| username | VARCHAR | Unique |
-| role | ENUM ou VARCHAR | `USER` / `ADMIN` / `SUPERADMIN` |
+**Clé primaire :** `id_utilisateur` (INTEGER, auto-incrémenté)
 
-### 2. `fournisseur_email`
-```
-fournisseur_email(#id_fournisseur, nom, url_autorisation, url_token, url_api, scopes)
-```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **id_fournisseur** (PK) | INT | Identifiant interne |
-| nom | VARCHAR | Unique (`gmail`, `outlook`) |
-| url_autorisation | VARCHAR | Endpoint OAuth |
-| url_token | VARCHAR | Endpoint d'échange |
-| url_api | VARCHAR | API du fournisseur |
-| scopes | TEXT | Liste de scopes OAuth |
+**Contraintes :**
+- `email` UNIQUE NOT NULL
+- `username` UNIQUE NOT NULL
+- `role` ∈ {`USER`, `ADMIN`, `SUPERADMIN`}
 
-### 3. `identifiant_email` *(table dédiée — issue de la classe-association)*
-```
-identifiant_email(
-  #id_identifiant,
-  #id_utilisateur → utilisateur.id_utilisateur,
-  #id_fournisseur → fournisseur_email.id_fournisseur,
-  access_token, refresh_token, expiration_token,
-  adresse_email
-)
-```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **id_identifiant** (PK) | INT | Identifiant interne |
-| **id_utilisateur** (FK) | INT | → `utilisateur.id_utilisateur` |
-| **id_fournisseur** (FK) | INT | → `fournisseur_email.id_fournisseur` |
-| access_token | TEXT | Jeton d'accès (chiffré au niveau application) |
-| refresh_token | TEXT | Jeton de rafraîchissement (chiffré au niveau application) |
-| expiration_token | TIMESTAMP | Date d'expiration |
-| adresse_email | VARCHAR | Adresse du compte connecté |
+---
 
-> **Contrainte d'unicité** : `UNIQUE(id_utilisateur, id_fournisseur)` — un même utilisateur ne peut connecter qu'**un seul** compte par fournisseur.
+### 2. fournisseur_email
+```
+(id_fournisseur, nom, url_autorisation, url_token, url_api, scopes)
+```
+**Clé primaire :** `id_fournisseur` (INTEGER, auto-incrémenté)
 
-### 4. `email_importe`
-```
-email_importe(
-  #message_id,
-  #id_utilisateur → utilisateur.id_utilisateur,
-  #id_fournisseur → fournisseur_email.id_fournisseur,
-  sujet, expediteur, destinataire,
-  apercu, corps,
-  date_reception, a_pieces_jointes
-)
-```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **message_id** (PK) | VARCHAR | Identifiant du message côté fournisseur |
-| **id_utilisateur** (FK) | INT | → `utilisateur.id_utilisateur` |
-| **id_fournisseur** (FK) | INT | → `fournisseur_email.id_fournisseur` |
-| sujet | VARCHAR | |
-| expediteur | VARCHAR | |
-| destinataire | VARCHAR | |
-| apercu | TEXT | |
-| corps | TEXT | |
-| date_reception | TIMESTAMP | |
-| a_pieces_jointes | BOOLEAN | |
+**Contraintes :**
+- `nom` UNIQUE NOT NULL
+- `nom` ∈ {`gmail`, `outlook`}
 
-### 5. `lot_analyse`
-```
-lot_analyse(
-  #id_lot,
-  #id_utilisateur → utilisateur.id_utilisateur,
-  source, nb_total,
-  nb_safe, nb_suspicious, nb_dangerous,
-  date_debut, date_fin
-)
-```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **id_lot** (PK) | INT | Identifiant du lot |
-| **id_utilisateur** (FK) | INT | → `utilisateur.id_utilisateur` (lanceur du lot) |
-| source | VARCHAR | `manuel` / `gmail` / `outlook` |
-| nb_total | INT | Nombre d'éléments soumis |
-| nb_safe | INT | Compteur Safe |
-| nb_suspicious | INT | Compteur Suspicious |
-| nb_dangerous | INT | Compteur Dangerous |
-| date_debut | TIMESTAMP | |
-| date_fin | TIMESTAMP | |
+---
 
-### 6. `analyse`
+### 3. identifiant_email *(table dédiée — issue de la classe-association)*
 ```
-analyse(
-  #id_analyse,
-  #id_lot → lot_analyse.id_lot,
-  #message_id → email_importe.message_id  (NULLABLE),
-  type_analyse, apercu_contenu,
-  niveau_menace, confiance,
-  date_creation
-)
+(id_identifiant, id_utilisateur, id_fournisseur,
+ access_token, refresh_token, expiration_token,
+ adresse_email)
 ```
-| Colonne | Type logique | Rôle |
-|---|---|---|
-| **id_analyse** (PK) | INT | Identifiant de l'analyse |
-| **id_lot** (FK) | INT | → `lot_analyse.id_lot` (NOT NULL) |
-| **message_id** (FK) | VARCHAR | → `email_importe.message_id` (NULL si saisie manuelle) |
-| type_analyse | VARCHAR | En sprint 3, toujours `email` |
-| apercu_contenu | TEXT | |
-| niveau_menace | VARCHAR | `safe` / `suspicious` / `dangerous` |
-| confiance | FLOAT | Score 0–1 |
-| date_creation | TIMESTAMP | |
+**Clé primaire :** `id_identifiant` (INTEGER, auto-incrémenté)
+
+**Relations :**
+- `id_utilisateur` → Référence vers `utilisateur`
+- `id_fournisseur` → Référence vers `fournisseur_email`
+
+**Contraintes :**
+- `UNIQUE(id_utilisateur, id_fournisseur)` — un utilisateur ne peut connecter qu'un seul compte par fournisseur
+- `access_token`, `refresh_token` chiffrés au niveau applicatif (Fernet / AES-GCM)
+- `expiration_token` NOT NULL
+
+---
+
+### 4. email_importe
+```
+(message_id, id_utilisateur, id_fournisseur,
+ sujet, expediteur, destinataire,
+ apercu, corps,
+ date_reception, a_pieces_jointes)
+```
+**Clé primaire :** `message_id` (VARCHAR — identifiant du message côté fournisseur)
+
+**Relations :**
+- `id_utilisateur` → Référence vers `utilisateur`
+- `id_fournisseur` → Référence vers `fournisseur_email`
+
+**Contraintes :**
+- `expediteur`, `destinataire` NOT NULL (format email)
+- `a_pieces_jointes` BOOLEAN — défaut `false`
+
+---
+
+### 5. lot_analyse
+```
+(id_lot, id_utilisateur,
+ source, nb_total,
+ nb_safe, nb_suspicious, nb_dangerous,
+ date_debut, date_fin)
+```
+**Clé primaire :** `id_lot` (INTEGER, auto-incrémenté)
+
+**Relations :**
+- `id_utilisateur` → Référence vers `utilisateur` (lanceur du lot)
+
+**Contraintes :**
+- `source` ∈ {`manuel`, `gmail`, `outlook`}
+- `nb_total = nb_safe + nb_suspicious + nb_dangerous` (cohérence des compteurs)
+- `date_fin >= date_debut`
+
+---
+
+### 6. analyse
+```
+(id_analyse, id_lot, message_id,
+ type_analyse, apercu_contenu,
+ niveau_menace, confiance,
+ date_creation)
+```
+**Clé primaire :** `id_analyse` (INTEGER, auto-incrémenté)
+
+**Relations :**
+- `id_lot` → Référence vers `lot_analyse` (NOT NULL — toute analyse appartient à un lot)
+- `message_id` → Référence vers `email_importe` (NULLABLE — NULL pour les analyses issues d'une saisie manuelle)
+
+**Contraintes :**
+- `type_analyse` ∈ {`email`} (en sprint 3 : email uniquement)
+- `niveau_menace` ∈ {`safe`, `suspicious`, `dangerous`}
+- `confiance` ∈ [0, 1] (FLOAT)
 
 ---
 
@@ -221,21 +202,77 @@ relationnel selon les règles classiques de Merise.
     \label{fig:mld_sprint3}
 \end{figure}
 
-Le schéma logique (figure~\ref{fig:mld_sprint3}) compte 6 relations :
-\begin{itemize}
-    \item \texttt{utilisateur(\underline{id\_utilisateur}, email, username, role)}
-    \item \texttt{fournisseur\_email(\underline{id\_fournisseur}, nom, url\_autorisation, url\_token, url\_api, scopes)}
-    \item \texttt{identifiant\_email(\underline{id\_identifiant}, \#id\_utilisateur, \#id\_fournisseur, access\_token, refresh\_token, expiration\_token, adresse\_email)}
-    \item \texttt{email\_importe(\underline{message\_id}, \#id\_utilisateur, \#id\_fournisseur, sujet, expediteur, destinataire, apercu, corps, date\_reception, a\_pieces\_jointes)}
-    \item \texttt{lot\_analyse(\underline{id\_lot}, \#id\_utilisateur, source, nb\_total, nb\_safe, nb\_suspicious, nb\_dangerous, date\_debut, date\_fin)}
-    \item \texttt{analyse(\underline{id\_analyse}, \#id\_lot, \#message\_id, type\_analyse, apercu\_contenu, niveau\_menace, confiance, date\_creation)}
-\end{itemize}
+\paragraph{Description des relations.}
 
-La table \textbf{identifiant\_email} est issue de la transformation de la
-classe-association du MCD : elle porte les jetons OAuth et matérialise la
-liaison \og un utilisateur connecte un compte chez un fournisseur \fg{}.
-Une contrainte d'unicité \texttt{UNIQUE(id\_utilisateur, id\_fournisseur)}
-garantit qu'un utilisateur ne peut connecter qu'un seul compte par fournisseur.
+\begin{enumerate}
+    \item \textbf{utilisateur}\\
+    \texttt{(id\_utilisateur, email, username, role)}\\
+    Clé primaire : \texttt{id\_utilisateur} (INTEGER)\\
+    Contraintes :
+    \begin{itemize}
+        \item \texttt{email} UNIQUE NOT NULL
+        \item \texttt{username} UNIQUE NOT NULL
+        \item \texttt{role} $\in$ \{\texttt{USER}, \texttt{ADMIN}, \texttt{SUPERADMIN}\}
+    \end{itemize}
+
+    \item \textbf{fournisseur\_email}\\
+    \texttt{(id\_fournisseur, nom, url\_autorisation, url\_token, url\_api, scopes)}\\
+    Clé primaire : \texttt{id\_fournisseur} (INTEGER)\\
+    Contraintes :
+    \begin{itemize}
+        \item \texttt{nom} UNIQUE
+        \item \texttt{nom} $\in$ \{\texttt{gmail}, \texttt{outlook}\}
+    \end{itemize}
+
+    \item \textbf{identifiant\_email}\\
+    \texttt{(id\_identifiant, id\_utilisateur, id\_fournisseur, access\_token, refresh\_token, expiration\_token, adresse\_email)}\\
+    Clé primaire : \texttt{id\_identifiant} (INTEGER)\\
+    Relations :
+    \begin{itemize}
+        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
+        \item \texttt{id\_fournisseur} $\rightarrow$ Référence vers \textbf{fournisseur\_email}
+    \end{itemize}
+    Contraintes :
+    \begin{itemize}
+        \item \texttt{UNIQUE(id\_utilisateur, id\_fournisseur)}
+        \item \texttt{access\_token}, \texttt{refresh\_token} chiffrés au niveau applicatif
+    \end{itemize}
+
+    \item \textbf{email\_importe}\\
+    \texttt{(message\_id, id\_utilisateur, id\_fournisseur, sujet, expediteur, destinataire, apercu, corps, date\_reception, a\_pieces\_jointes)}\\
+    Clé primaire : \texttt{message\_id} (VARCHAR)\\
+    Relations :
+    \begin{itemize}
+        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
+        \item \texttt{id\_fournisseur} $\rightarrow$ Référence vers \textbf{fournisseur\_email}
+    \end{itemize}
+
+    \item \textbf{lot\_analyse}\\
+    \texttt{(id\_lot, id\_utilisateur, source, nb\_total, nb\_safe, nb\_suspicious, nb\_dangerous, date\_debut, date\_fin)}\\
+    Clé primaire : \texttt{id\_lot} (INTEGER)\\
+    Relations :
+    \begin{itemize}
+        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
+    \end{itemize}
+    Contraintes :
+    \begin{itemize}
+        \item \texttt{source} $\in$ \{\texttt{manuel}, \texttt{gmail}, \texttt{outlook}\}
+    \end{itemize}
+
+    \item \textbf{analyse}\\
+    \texttt{(id\_analyse, id\_lot, message\_id, type\_analyse, apercu\_contenu, niveau\_menace, confiance, date\_creation)}\\
+    Clé primaire : \texttt{id\_analyse} (INTEGER)\\
+    Relations :
+    \begin{itemize}
+        \item \texttt{id\_lot} $\rightarrow$ Référence vers \textbf{lot\_analyse} (NOT NULL)
+        \item \texttt{message\_id} $\rightarrow$ Référence vers \textbf{email\_importe} (NULLABLE)
+    \end{itemize}
+    Contraintes :
+    \begin{itemize}
+        \item \texttt{niveau\_menace} $\in$ \{\texttt{safe}, \texttt{suspicious}, \texttt{dangerous}\}
+        \item \texttt{confiance} $\in [0, 1]$
+    \end{itemize}
+\end{enumerate}
 ```
 
 ---
