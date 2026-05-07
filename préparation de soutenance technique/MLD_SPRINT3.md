@@ -1,6 +1,6 @@
 # MLD — Sprint 3 (Intégration Gmail / Outlook & traitement à grande échelle)
 
-> Modèle Logique de Données (MLD) — traduction relationnelle du MCD du sprint 3.
+> Modèle Logique de Données (MLD) **aligné sur le schéma Supabase réel** du backend PhishGuard.
 > À insérer dans la section **4.3.3 Conception de la base de données → Modèle logique de données (MLD)** du rapport.
 
 ## Image du MLD
@@ -18,172 +18,145 @@
 
 ## Conventions de notation
 
-- **Tables** : nom en `snake_case`, énumération des attributs entre parenthèses.
-- **Clé primaire (PK)** : déclarée explicitement avec son type logique.
-- **Clé étrangère (FK)** : listée dans la rubrique `Relations` avec la table référencée.
-- **Contraintes** : domaine de valeurs, unicité, nullabilité — listées dans la rubrique `Contraintes`.
+- **Noms de tables et colonnes** : exactement ceux du code backend (cf. `backend/app/models/*.py`), donc en **anglais snake_case**.
+- **Clé primaire (PK)** : déclarée avec son type logique.
+- **Clé étrangère (FK)** : listée dans la rubrique `Relations`.
+- **Contraintes** : domaine de valeurs, unicité, nullabilité, comportement ON DELETE.
 
 ---
 
-## Règles de passage MCD → MLD appliquées
+## Périmètre du sprint 3 dans la base réelle
 
-| Règle Merise | Application sprint 3 |
-|---|---|
-| Une **entité** devient une **table** ; son identifiant devient la **PK**. | `utilisateur`, `fournisseur_email`, `email_importe`, `lot_analyse`, `analyse` |
-| Une **association (1,n) — (1,1)** se traduit par une **FK** dans la table côté « 1,1 ». | `email_importe.id_utilisateur`, `email_importe.id_fournisseur`, `lot_analyse.id_utilisateur`, `analyse.id_lot` |
-| Une **association (0,1) — (0,n)** se traduit par une **FK NULLABLE** dans la table côté « 0,1 ». | `analyse.message_id` (NULLABLE car analyse manuelle = pas d'email source) |
-| Une **classe-association (n,n)** devient une **table dédiée** avec FK vers chaque entité + ses propres attributs. | `identifiant_email` |
+Sur les 11 tables de la base Supabase, **4 sont mobilisées** par les cas d'usage du sprint 3 :
+
+| Table | Sprint d'origine | Rôle dans le sprint 3 |
+|---|---|---|
+| `users` | sprint 1 | Acteurs (utilisateur, administrateur, super-administrateur) |
+| `email_providers` | **sprint 3** | Catalogue des fournisseurs OAuth (Gmail, Outlook) |
+| `user_email_credentials` | **sprint 3** | Jetons OAuth d'un utilisateur pour un fournisseur |
+| `analysis_history` | sprint 1/2 | Résultats d'analyse (y compris l'analyse en masse) |
+
+> **Choix de conception** : les emails ne sont pas persistés en base. Ils sont récupérés à la volée via Gmail API / Microsoft Graph et restent côté fournisseur. De même, l'analyse en masse insère plusieurs lignes dans `analysis_history` ; il n'existe pas (encore) de table de regroupement par lot.
 
 ---
 
-## Description des relations (6)
+## Description des relations (4)
 
-### 1. utilisateur
+### 1. users
 ```
-(id_utilisateur, email, username, role)
+(id, email, username, role)
 ```
-**Clé primaire :** `id_utilisateur` (INTEGER, auto-incrémenté)
+**Clé primaire :** `id` (INTEGER, auto-incrémenté)
 
 **Contraintes :**
 - `email` UNIQUE NOT NULL
 - `username` UNIQUE NOT NULL
-- `role` ∈ {`USER`, `ADMIN`, `SUPERADMIN`}
+- `role` ∈ {`USER`, `ADMIN`, `SUPERADMIN`} (SQLEnum `UserRole`)
+
+> *Note* : la table `users` réelle contient d'autres colonnes (`hashed_password`, `is_active`, `is_banned`, `email_verified`, `two_factor_enabled`, `profile_picture`, etc.) mais elles relèvent d'autres sprints (auth, 2FA, administration) et ne sont pas représentées ici, conformément au périmètre du sprint 3.
 
 ---
 
-### 2. fournisseur_email
+### 2. email_providers
 ```
-(id_fournisseur, nom, url_autorisation, url_token, url_api, scopes)
+(id, provider_name, oauth_authorize_url, oauth_token_url,
+ api_base_url, scopes, is_active, created_at)
 ```
-**Clé primaire :** `id_fournisseur` (INTEGER, auto-incrémenté)
+**Clé primaire :** `id` (INTEGER, auto-incrémenté)
 
 **Contraintes :**
-- `nom` UNIQUE NOT NULL
-- `nom` ∈ {`gmail`, `outlook`}
+- `provider_name` UNIQUE NOT NULL ∈ {`gmail`, `outlook`}
+- `oauth_authorize_url` NOT NULL
+- `oauth_token_url` NOT NULL
+- `api_base_url` NOT NULL
+- `scopes` NOT NULL (chaîne de scopes séparés par espace)
+- `is_active` BOOLEAN — défaut `true`
+- `created_at` TIMESTAMP — défaut `NOW()`
 
 ---
 
-### 3. identifiant_email *(table dédiée — issue de la classe-association)*
+### 3. user_email_credentials
 ```
-(id_identifiant, id_utilisateur, id_fournisseur,
- access_token, refresh_token, expiration_token,
- adresse_email)
+(id, user_id, provider,
+ access_token, refresh_token, token_expiry,
+ email_address, created_at, updated_at)
 ```
-**Clé primaire :** `id_identifiant` (INTEGER, auto-incrémenté)
+**Clé primaire :** `id` (INTEGER, auto-incrémenté)
 
 **Relations :**
-- `id_utilisateur` → Référence vers `utilisateur`
-- `id_fournisseur` → Référence vers `fournisseur_email`
+- `user_id` → Référence vers `users.id` (ON DELETE CASCADE)
 
 **Contraintes :**
-- `UNIQUE(id_utilisateur, id_fournisseur)` — un utilisateur ne peut connecter qu'un seul compte par fournisseur
-- `access_token`, `refresh_token` chiffrés au niveau applicatif (Fernet / AES-GCM)
-- `expiration_token` NOT NULL
+- `UNIQUE(user_id, provider)` — un utilisateur ne peut connecter qu'**un seul** compte par fournisseur
+- `provider` VARCHAR(20) NOT NULL ∈ {`gmail`, `outlook`}
+- `access_token` TEXT NOT NULL — chiffré au niveau applicatif (Fernet/AES-GCM)
+- `refresh_token` TEXT NULLABLE — chiffré au niveau applicatif
+- `token_expiry` TIMESTAMP NULLABLE
+- `email_address` VARCHAR(255) NULLABLE — adresse du compte connecté
+- `created_at`, `updated_at` TIMESTAMP
+
+> *Note de conception* : `provider` est stocké comme une chaîne (`'gmail'`/`'outlook'`) plutôt qu'une FK vers `email_providers.provider_name`. Ce choix simplifie les requêtes mais nécessite une cohérence applicative.
 
 ---
 
-### 4. email_importe
+### 4. analysis_history
 ```
-(message_id, id_utilisateur, id_fournisseur,
- sujet, expediteur, destinataire,
- apercu, corps,
- date_reception, a_pieces_jointes)
+(id, user_id,
+ analysis_type, content_preview,
+ threat_level, confidence,
+ features, recommendations,
+ created_at)
 ```
-**Clé primaire :** `message_id` (VARCHAR — identifiant du message côté fournisseur)
+**Clé primaire :** `id` (INTEGER, auto-incrémenté)
 
 **Relations :**
-- `id_utilisateur` → Référence vers `utilisateur`
-- `id_fournisseur` → Référence vers `fournisseur_email`
+- `user_id` → Référence vers `users.id` (ON DELETE CASCADE, NULLABLE — analyses anonymes possibles)
 
 **Contraintes :**
-- `expediteur`, `destinataire` NOT NULL (format email)
-- `a_pieces_jointes` BOOLEAN — défaut `false`
+- `analysis_type` VARCHAR(10) NOT NULL ∈ {`email`, `url`}
+- `content_preview` TEXT NOT NULL
+- `threat_level` VARCHAR(20) NOT NULL ∈ {`safe`, `suspicious`, `dangerous`}
+- `confidence` FLOAT NOT NULL ∈ [0, 1]
+- `features` JSON NULLABLE — caractéristiques détectées par le modèle ML
+- `recommendations` JSON NULLABLE — recommandations générées
+- `created_at` TIMESTAMP — défaut `NOW()`
 
----
-
-### 5. lot_analyse
-```
-(id_lot, id_utilisateur,
- source, nb_total,
- nb_safe, nb_suspicious, nb_dangerous,
- date_debut, date_fin)
-```
-**Clé primaire :** `id_lot` (INTEGER, auto-incrémenté)
-
-**Relations :**
-- `id_utilisateur` → Référence vers `utilisateur` (lanceur du lot)
-
-**Contraintes :**
-- `source` ∈ {`manuel`, `gmail`, `outlook`}
-- `nb_total = nb_safe + nb_suspicious + nb_dangerous` (cohérence des compteurs)
-- `date_fin >= date_debut`
-
----
-
-### 6. analyse
-```
-(id_analyse, id_lot, message_id,
- type_analyse, apercu_contenu,
- niveau_menace, confiance,
- date_creation)
-```
-**Clé primaire :** `id_analyse` (INTEGER, auto-incrémenté)
-
-**Relations :**
-- `id_lot` → Référence vers `lot_analyse` (NOT NULL — toute analyse appartient à un lot)
-- `message_id` → Référence vers `email_importe` (NULLABLE — NULL pour les analyses issues d'une saisie manuelle)
-
-**Contraintes :**
-- `type_analyse` ∈ {`email`} (en sprint 3 : email uniquement)
-- `niveau_menace` ∈ {`safe`, `suspicious`, `dangerous`}
-- `confiance` ∈ [0, 1] (FLOAT)
+> *Note* : le sprint 3 réutilise cette table existante. Une analyse en masse génère **plusieurs lignes** dans `analysis_history` (une par email analysé), sans regroupement physique.
 
 ---
 
 ## Schéma textuel récapitulatif
 
 ```
-utilisateur          (#id_utilisateur, email, username, role)
-fournisseur_email    (#id_fournisseur, nom, url_autorisation, url_token, url_api, scopes)
-identifiant_email    (#id_identifiant,
-                      #id_utilisateur → utilisateur.id_utilisateur,
-                      #id_fournisseur → fournisseur_email.id_fournisseur,
-                      access_token, refresh_token, expiration_token, adresse_email,
-                      UNIQUE(id_utilisateur, id_fournisseur))
-email_importe        (#message_id,
-                      #id_utilisateur → utilisateur.id_utilisateur,
-                      #id_fournisseur → fournisseur_email.id_fournisseur,
-                      sujet, expediteur, destinataire, apercu, corps,
-                      date_reception, a_pieces_jointes)
-lot_analyse          (#id_lot,
-                      #id_utilisateur → utilisateur.id_utilisateur,
-                      source, nb_total, nb_safe, nb_suspicious, nb_dangerous,
-                      date_debut, date_fin)
-analyse              (#id_analyse,
-                      #id_lot → lot_analyse.id_lot,
-                      #message_id → email_importe.message_id  (NULL OK),
-                      type_analyse, apercu_contenu, niveau_menace,
-                      confiance, date_creation)
+users                    (#id, email, username, role)
+email_providers          (#id, provider_name, oauth_authorize_url, oauth_token_url,
+                          api_base_url, scopes, is_active, created_at)
+user_email_credentials   (#id,
+                          #user_id → users.id  (ON DELETE CASCADE),
+                          provider, access_token, refresh_token, token_expiry,
+                          email_address, created_at, updated_at,
+                          UNIQUE(user_id, provider))
+analysis_history         (#id,
+                          #user_id → users.id  (ON DELETE CASCADE, NULL OK),
+                          analysis_type, content_preview, threat_level, confidence,
+                          features, recommendations, created_at)
 ```
 
 ---
 
-## Traçabilité MCD → MLD
+## Traçabilité MCD → MLD (Supabase)
 
-| MCD (entité ou association) | MLD (table ou colonne FK) |
+| MCD (entité ou association) | MLD réel (table ou colonne) |
 |---|---|
-| Entité `Utilisateur` | Table `utilisateur` |
-| Entité `FournisseurEmail` | Table `fournisseur_email` |
-| Classe-association `IdentifiantEmail` (n,n entre Utilisateur et FournisseurEmail) | Table `identifiant_email` + 2 FK + UNIQUE |
-| Entité `EmailImporté` | Table `email_importe` |
-| Entité `LotAnalyse` | Table `lot_analyse` |
-| Entité `Analyse` | Table `analyse` |
-| Association `se_connecte` | FKs dans `identifiant_email` |
-| Association `importe` (1,1 / 1,n) | FK `email_importe.id_utilisateur` |
-| Association `provient_de` (1,1 / 1,n) | FK `email_importe.id_fournisseur` |
-| Association `lance` (1,1 / 1,n) | FK `lot_analyse.id_utilisateur` |
-| Association `contient` (1,1 / 1,n) | FK `analyse.id_lot` (NOT NULL) |
-| Association `concerne` (0,1 / 0,n) | FK `analyse.message_id` (NULLABLE) |
+| Entité `Utilisateur` | Table `users` (colonnes sprint 3 : id, email, username, role) |
+| Entité `FournisseurEmail` | Table `email_providers` |
+| Classe-association `IdentifiantEmail` | Table `user_email_credentials` + UNIQUE(user_id, provider) |
+| Entité `EmailImporté` | ❌ **Non persistée** — récupération à la volée via Gmail/Microsoft Graph |
+| Entité `LotAnalyse` | ❌ **Non persistée** — éclatée en N lignes dans `analysis_history` |
+| Entité `Analyse` | Table `analysis_history` |
+| Association `se_connecte` | FK `user_email_credentials.user_id` |
+| Association `lance` / `effectue` | FK `analysis_history.user_id` |
+| Association `concerne` (Analyse → EmailImporté) | ❌ Pas de FK vers les emails (non persistés) |
 
 ---
 
@@ -193,21 +166,22 @@ analyse              (#id_analyse,
 \subsection*{Modèle logique de données (MLD)}
 
 À partir du MCD précédent, nous avons procédé au passage au modèle logique
-relationnel selon les règles classiques de Merise.
+relationnel selon les règles classiques de Merise. Ce MLD est aligné sur le
+schéma réel de la base PostgreSQL (Supabase) actuellement en production.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{figures/MLD_sprint3.pdf}
-    \caption{Modèle Logique de Données du sprint 3}
+    \caption{Modèle Logique de Données du sprint 3 — aligné Supabase}
     \label{fig:mld_sprint3}
 \end{figure}
 
 \paragraph{Description des relations.}
 
 \begin{enumerate}
-    \item \textbf{utilisateur}\\
-    \texttt{(id\_utilisateur, email, username, role)}\\
-    Clé primaire : \texttt{id\_utilisateur} (INTEGER)\\
+    \item \textbf{users}\\
+    \texttt{(id, email, username, role)}\\
+    Clé primaire : \texttt{id} (INTEGER)\\
     Contraintes :
     \begin{itemize}
         \item \texttt{email} UNIQUE NOT NULL
@@ -215,68 +189,54 @@ relationnel selon les règles classiques de Merise.
         \item \texttt{role} $\in$ \{\texttt{USER}, \texttt{ADMIN}, \texttt{SUPERADMIN}\}
     \end{itemize}
 
-    \item \textbf{fournisseur\_email}\\
-    \texttt{(id\_fournisseur, nom, url\_autorisation, url\_token, url\_api, scopes)}\\
-    Clé primaire : \texttt{id\_fournisseur} (INTEGER)\\
+    \item \textbf{email\_providers}\\
+    \texttt{(id, provider\_name, oauth\_authorize\_url, oauth\_token\_url, api\_base\_url, scopes, is\_active, created\_at)}\\
+    Clé primaire : \texttt{id} (INTEGER)\\
     Contraintes :
     \begin{itemize}
-        \item \texttt{nom} UNIQUE
-        \item \texttt{nom} $\in$ \{\texttt{gmail}, \texttt{outlook}\}
+        \item \texttt{provider\_name} UNIQUE NOT NULL
+        \item \texttt{provider\_name} $\in$ \{\texttt{gmail}, \texttt{outlook}\}
     \end{itemize}
 
-    \item \textbf{identifiant\_email}\\
-    \texttt{(id\_identifiant, id\_utilisateur, id\_fournisseur, access\_token, refresh\_token, expiration\_token, adresse\_email)}\\
-    Clé primaire : \texttt{id\_identifiant} (INTEGER)\\
+    \item \textbf{user\_email\_credentials}\\
+    \texttt{(id, user\_id, provider, access\_token, refresh\_token, token\_expiry, email\_address, created\_at, updated\_at)}\\
+    Clé primaire : \texttt{id} (INTEGER)\\
     Relations :
     \begin{itemize}
-        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
-        \item \texttt{id\_fournisseur} $\rightarrow$ Référence vers \textbf{fournisseur\_email}
+        \item \texttt{user\_id} $\rightarrow$ Référence vers \textbf{users} (ON DELETE CASCADE)
     \end{itemize}
     Contraintes :
     \begin{itemize}
-        \item \texttt{UNIQUE(id\_utilisateur, id\_fournisseur)}
+        \item \texttt{UNIQUE(user\_id, provider)}
         \item \texttt{access\_token}, \texttt{refresh\_token} chiffrés au niveau applicatif
     \end{itemize}
 
-    \item \textbf{email\_importe}\\
-    \texttt{(message\_id, id\_utilisateur, id\_fournisseur, sujet, expediteur, destinataire, apercu, corps, date\_reception, a\_pieces\_jointes)}\\
-    Clé primaire : \texttt{message\_id} (VARCHAR)\\
+    \item \textbf{analysis\_history}\\
+    \texttt{(id, user\_id, analysis\_type, content\_preview, threat\_level, confidence, features, recommendations, created\_at)}\\
+    Clé primaire : \texttt{id} (INTEGER)\\
     Relations :
     \begin{itemize}
-        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
-        \item \texttt{id\_fournisseur} $\rightarrow$ Référence vers \textbf{fournisseur\_email}
-    \end{itemize}
-
-    \item \textbf{lot\_analyse}\\
-    \texttt{(id\_lot, id\_utilisateur, source, nb\_total, nb\_safe, nb\_suspicious, nb\_dangerous, date\_debut, date\_fin)}\\
-    Clé primaire : \texttt{id\_lot} (INTEGER)\\
-    Relations :
-    \begin{itemize}
-        \item \texttt{id\_utilisateur} $\rightarrow$ Référence vers \textbf{utilisateur}
+        \item \texttt{user\_id} $\rightarrow$ Référence vers \textbf{users} (ON DELETE CASCADE, NULLABLE)
     \end{itemize}
     Contraintes :
     \begin{itemize}
-        \item \texttt{source} $\in$ \{\texttt{manuel}, \texttt{gmail}, \texttt{outlook}\}
-    \end{itemize}
-
-    \item \textbf{analyse}\\
-    \texttt{(id\_analyse, id\_lot, message\_id, type\_analyse, apercu\_contenu, niveau\_menace, confiance, date\_creation)}\\
-    Clé primaire : \texttt{id\_analyse} (INTEGER)\\
-    Relations :
-    \begin{itemize}
-        \item \texttt{id\_lot} $\rightarrow$ Référence vers \textbf{lot\_analyse} (NOT NULL)
-        \item \texttt{message\_id} $\rightarrow$ Référence vers \textbf{email\_importe} (NULLABLE)
-    \end{itemize}
-    Contraintes :
-    \begin{itemize}
-        \item \texttt{niveau\_menace} $\in$ \{\texttt{safe}, \texttt{suspicious}, \texttt{dangerous}\}
-        \item \texttt{confiance} $\in [0, 1]$
+        \item \texttt{analysis\_type} $\in$ \{\texttt{email}, \texttt{url}\}
+        \item \texttt{threat\_level} $\in$ \{\texttt{safe}, \texttt{suspicious}, \texttt{dangerous}\}
+        \item \texttt{confidence} $\in [0, 1]$
     \end{itemize}
 \end{enumerate}
+
+\paragraph{Justification des absences.} Les emails consultés depuis Gmail ou
+Outlook ne sont pas persistés en base : ils sont récupérés à la volée via les
+API des fournisseurs (Gmail API, Microsoft Graph) et seul un cache léger est
+maintenu en mémoire le temps de l'analyse. De même, une analyse en masse
+génère $N$ lignes dans \texttt{analysis\_history} sans regroupement physique
+par lot : le rapport agrégé (compteurs Safe/Suspicious/Dangerous) est calculé
+côté applicatif au moment du retour de la requête.
 ```
 
 ---
 
 ## Étapes suivantes
 
-- **MPD / Script SQL** : `CREATE TABLE` PostgreSQL avec types précis (SERIAL, VARCHAR(255), TIMESTAMP, BOOLEAN), index sur les FK, contraintes `NOT NULL` / `UNIQUE`, et migration Alembic. Dis-moi si tu veux que j'enchaîne.
+- **MPD / Script SQL** : `CREATE TABLE` PostgreSQL avec types précis (SERIAL, VARCHAR, TIMESTAMP WITH TIME ZONE, JSON), index sur les FK, contraintes `NOT NULL` / `UNIQUE` / `CHECK`. Dis-moi si tu veux que j'enchaîne.

@@ -1,16 +1,21 @@
 """
 Génère le MLD (Modèle Logique de Données) du Sprint 3 — PhishGuard.
 
-Le MLD est la traduction relationnelle du MCD : chaque entité devient une
-relation (table) avec une clé primaire ; chaque association (1,n / 1,1)
-introduit une clé étrangère ; chaque classe-association ou association n,n
-devient une table de jointure.
+Aligné sur le schéma Supabase réel (cf. backend/app/models/*.py) :
+  * users
+  * email_providers
+  * user_email_credentials
+  * analysis_history
+
+Le MLD ne montre que les colonnes utiles aux cas d'usage du sprint 3.
+Les emails et les lots d'analyse en masse ne sont PAS persistés en base
+(les emails restent côté Gmail / Microsoft Graph ; les lots agrègent
+plusieurs lignes dans `analysis_history` sans regroupement physique).
 
 Convention :
   * tables = rectangles avec en-tête bleu
   * clé primaire (PK) : icône 🔑 + soulignée
   * clé étrangère (FK) : icône 🔗 + flèche vers la table référencée
-  * snake_case + préfixe id_xxx pour les identifiants (standard relationnel)
 """
 from graphviz import Digraph
 from pathlib import Path
@@ -28,73 +33,50 @@ BORDER = "#1F4E79"
 # Description des tables : (nom, [(col_name, kind, port_id)])
 # kind ∈ {"pk", "fk", "col"} ; port_id sert d'ancre pour les flèches FK.
 TABLES = {
-    "utilisateur": [
-        ("id_utilisateur", "pk", "pk"),
+    "users": [
+        ("id", "pk", "pk"),
         ("email", "col", None),
         ("username", "col", None),
         ("role", "col", None),
     ],
-    "fournisseur_email": [
-        ("id_fournisseur", "pk", "pk"),
-        ("nom", "col", None),
-        ("url_autorisation", "col", None),
-        ("url_token", "col", None),
-        ("url_api", "col", None),
+    "email_providers": [
+        ("id", "pk", "pk"),
+        ("provider_name", "col", None),
+        ("oauth_authorize_url", "col", None),
+        ("oauth_token_url", "col", None),
+        ("api_base_url", "col", None),
         ("scopes", "col", None),
+        ("is_active", "col", None),
+        ("created_at", "col", None),
     ],
-    "identifiant_email": [
-        ("id_identifiant", "pk", "pk"),
-        ("id_utilisateur", "fk", "fk_user"),
-        ("id_fournisseur", "fk", "fk_provider"),
+    "user_email_credentials": [
+        ("id", "pk", "pk"),
+        ("user_id", "fk", "fk_user"),
+        ("provider", "col", None),
         ("access_token", "col", None),
         ("refresh_token", "col", None),
-        ("expiration_token", "col", None),
-        ("adresse_email", "col", None),
+        ("token_expiry", "col", None),
+        ("email_address", "col", None),
+        ("created_at", "col", None),
+        ("updated_at", "col", None),
     ],
-    "email_importe": [
-        ("message_id", "pk", "pk"),
-        ("id_utilisateur", "fk", "fk_user"),
-        ("id_fournisseur", "fk", "fk_provider"),
-        ("sujet", "col", None),
-        ("expediteur", "col", None),
-        ("destinataire", "col", None),
-        ("apercu", "col", None),
-        ("corps", "col", None),
-        ("date_reception", "col", None),
-        ("a_pieces_jointes", "col", None),
-    ],
-    "lot_analyse": [
-        ("id_lot", "pk", "pk"),
-        ("id_utilisateur", "fk", "fk_user"),
-        ("source", "col", None),
-        ("nb_total", "col", None),
-        ("nb_safe", "col", None),
-        ("nb_suspicious", "col", None),
-        ("nb_dangerous", "col", None),
-        ("date_debut", "col", None),
-        ("date_fin", "col", None),
-    ],
-    "analyse": [
-        ("id_analyse", "pk", "pk"),
-        ("id_lot", "fk", "fk_lot"),
-        ("message_id", "fk", "fk_email"),
-        ("type_analyse", "col", None),
-        ("apercu_contenu", "col", None),
-        ("niveau_menace", "col", None),
-        ("confiance", "col", None),
-        ("date_creation", "col", None),
+    "analysis_history": [
+        ("id", "pk", "pk"),
+        ("user_id", "fk", "fk_user"),
+        ("analysis_type", "col", None),
+        ("content_preview", "col", None),
+        ("threat_level", "col", None),
+        ("confidence", "col", None),
+        ("features", "col", None),
+        ("recommendations", "col", None),
+        ("created_at", "col", None),
     ],
 }
 
 # Liste des contraintes FK : (table_source, port_source, table_cible, port_cible)
 FOREIGN_KEYS = [
-    ("identifiant_email", "fk_user", "utilisateur", "pk"),
-    ("identifiant_email", "fk_provider", "fournisseur_email", "pk"),
-    ("email_importe", "fk_user", "utilisateur", "pk"),
-    ("email_importe", "fk_provider", "fournisseur_email", "pk"),
-    ("lot_analyse", "fk_user", "utilisateur", "pk"),
-    ("analyse", "fk_lot", "lot_analyse", "pk"),
-    ("analyse", "fk_email", "email_importe", "pk"),
+    ("user_email_credentials", "fk_user", "users", "pk"),
+    ("analysis_history", "fk_user", "users", "pk"),
 ]
 
 
