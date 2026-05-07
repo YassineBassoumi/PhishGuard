@@ -1,17 +1,24 @@
 """
 Génère le MCD (Modèle Conceptuel de Données) du Sprint 3 — PhishGuard.
 
-Style Merise inspiré de l'exemple fourni :
+Style Merise (pur conceptuel, conforme à la convention de l'exemple fourni) :
   * entités : rectangles avec en-tête bleu clair + liste d'attributs
+              (uniquement les NOMS — aucun type technique, aucun (PK))
+  * identifiant : attribut SOULIGNÉ (convention Merise)
   * associations : losanges blancs portant un verbe
-  * cardinalités : étiquettes (0,n / 1,n / 1,1) sur les arêtes
+  * cardinalités : étiquettes (0,n / 1,n / 1,1 / 0,1) sur les arêtes
 
 Périmètre Sprint 3 (Intégration Gmail / Outlook & traitement à grande échelle) :
   - Connecter un compte Gmail / Outlook (OAuth 2.0)
-  - Stockage des tokens (UserEmailCredential)
+  - Stockage des tokens (classe-association IdentifiantEmail)
   - Consultation de la boîte email connectée
   - Analyse en masse (multi-sélection depuis la boîte ou saisie manuelle)
-  - Historique des analyses, statistiques, notifications
+  - Historique d'analyse (Analyse) avec regroupement en lots (LotAnalyse)
+
+Entités volontairement exclues du MCD du sprint 3 :
+  - JournalAudit : entité purement technique (sécurité/conformité)
+  - Notification, Statistique : non visibles dans les cas d'usage
+    de ce sprint (le MCD décrit le périmètre fonctionnel du sprint).
 """
 from graphviz import Digraph
 from pathlib import Path
@@ -19,7 +26,7 @@ from pathlib import Path
 OUT_DIR = Path(__file__).resolve().parent.parent / "diagrammes"
 OUT_DIR.mkdir(exist_ok=True)
 
-ENTITY_HEADER_BG = "#7FB3D5"   # bleu clair (en-tête)
+ENTITY_HEADER_BG = "#7FB3D5"
 ENTITY_HEADER_FG = "#FFFFFF"
 ENTITY_BODY_BG = "#FFFFFF"
 ENTITY_BORDER = "#1F4E79"
@@ -28,15 +35,20 @@ ASSOC_BG = "#FFFFFF"
 ASSOC_BORDER = "#1F4E79"
 
 
-def entity_node(name: str, attrs: list[tuple[str, str]]) -> str:
-    """Construit une étiquette HTML-like Graphviz pour une entité Merise."""
+def entity_node(name: str, attrs: list[str], identifier: str = "id") -> str:
+    """Construit une étiquette HTML-like pour une entité Merise.
+
+    Convention : nom seul pour chaque attribut, identifiant souligné.
+    """
     rows = ""
-    for key, typ in attrs:
+    for attr in attrs:
+        if attr == identifier:
+            content = f"<U>{attr}</U>"
+        else:
+            content = attr
         rows += (
-            f'<TR><TD ALIGN="LEFT" BGCOLOR="{ENTITY_BODY_BG}" '
-            f'PORT="{key}">'
-            f'<FONT POINT-SIZE="10">{key}</FONT>'
-            f'<FONT POINT-SIZE="9" COLOR="#666666">  : {typ}</FONT>'
+            f'<TR><TD ALIGN="LEFT" BGCOLOR="{ENTITY_BODY_BG}">'
+            f'<FONT POINT-SIZE="11">{content}</FONT>'
             f"</TD></TR>"
         )
     label = (
@@ -71,18 +83,18 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "Utilisateur",
             [
-                ("id", "Integer (PK)"),
-                ("email", "String (unique)"),
-                ("username", "String (unique)"),
-                ("hashedPassword", "String"),
-                ("role", "Enum (USER/ADMIN/SUPERADMIN)"),
-                ("isActive", "Boolean"),
-                ("isBanned", "Boolean"),
-                ("emailVerified", "Boolean"),
-                ("twoFactorEnabled", "Boolean"),
-                ("profilePicture", "String"),
-                ("createdAt", "DateTime"),
-                ("lastLogin", "DateTime"),
+                "id",
+                "email",
+                "username",
+                "motDePasse",
+                "role",
+                "estActif",
+                "estBanni",
+                "emailVerifie",
+                "doubleAuthActive",
+                "photoProfil",
+                "dateCreation",
+                "derniereConnexion",
             ],
         ),
         shape="plaintext",
@@ -93,14 +105,14 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "FournisseurEmail",
             [
-                ("id", "Integer (PK)"),
-                ("providerName", "String (unique)"),
-                ("oauthAuthorizeUrl", "Text"),
-                ("oauthTokenUrl", "Text"),
-                ("apiBaseUrl", "Text"),
-                ("scopes", "Text"),
-                ("isActive", "Boolean"),
-                ("createdAt", "DateTime"),
+                "id",
+                "nom",
+                "urlAutorisation",
+                "urlToken",
+                "urlApi",
+                "scopes",
+                "estActif",
+                "dateCreation",
             ],
         ),
         shape="plaintext",
@@ -111,14 +123,13 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "IdentifiantEmail",
             [
-                ("id", "Integer (PK)"),
-                ("provider", "String"),
-                ("accessToken", "Text (chiffré)"),
-                ("refreshToken", "Text (chiffré)"),
-                ("tokenExpiry", "DateTime"),
-                ("emailAddress", "String"),
-                ("createdAt", "DateTime"),
-                ("updatedAt", "DateTime"),
+                "id",
+                "accessToken",
+                "refreshToken",
+                "expirationToken",
+                "adresseEmail",
+                "dateCreation",
+                "dateMiseAJour",
             ],
         ),
         shape="plaintext",
@@ -129,15 +140,16 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "EmailImporté",
             [
-                ("messageId", "String (PK)"),
-                ("subject", "String"),
-                ("sender", "String"),
-                ("recipient", "String"),
-                ("snippet", "Text"),
-                ("body", "Text"),
-                ("receivedAt", "DateTime"),
-                ("hasAttachments", "Boolean"),
+                "messageId",
+                "sujet",
+                "expediteur",
+                "destinataire",
+                "apercu",
+                "corps",
+                "dateReception",
+                "aPiecesJointes",
             ],
+            identifier="messageId",
         ),
         shape="plaintext",
     )
@@ -147,14 +159,14 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "LotAnalyse",
             [
-                ("id", "Integer (PK)"),
-                ("source", "Enum (manuel/gmail/outlook)"),
-                ("totalItems", "Integer"),
-                ("safeCount", "Integer"),
-                ("suspiciousCount", "Integer"),
-                ("dangerousCount", "Integer"),
-                ("startedAt", "DateTime"),
-                ("completedAt", "DateTime"),
+                "id",
+                "source",
+                "nbTotal",
+                "nbSafe",
+                "nbSuspicious",
+                "nbDangerous",
+                "dateDebut",
+                "dateFin",
             ],
         ),
         shape="plaintext",
@@ -165,64 +177,14 @@ def build_mcd_sprint3() -> Digraph:
         label=entity_node(
             "Analyse",
             [
-                ("id", "Integer (PK)"),
-                ("analysisType", "Enum (email/url)"),
-                ("contentPreview", "Text"),
-                ("threatLevel", "Enum (safe/suspicious/dangerous)"),
-                ("confidence", "Float"),
-                ("features", "JSON"),
-                ("recommendations", "JSON"),
-                ("createdAt", "DateTime"),
-            ],
-        ),
-        shape="plaintext",
-    )
-
-    g.node(
-        "Statistique",
-        label=entity_node(
-            "Statistique",
-            [
-                ("id", "Integer (PK)"),
-                ("totalAnalyses", "Integer"),
-                ("threatsDetected", "Integer"),
-                ("emailsAnalyzed", "Integer"),
-                ("urlsAnalyzed", "Integer"),
-                ("lastUpdated", "DateTime"),
-            ],
-        ),
-        shape="plaintext",
-    )
-
-    g.node(
-        "Notification",
-        label=entity_node(
-            "Notification",
-            [
-                ("id", "Integer (PK)"),
-                ("type", "String"),
-                ("title", "String"),
-                ("message", "Text"),
-                ("severity", "Enum (info/warn/error)"),
-                ("isRead", "Boolean"),
-                ("createdAt", "DateTime"),
-            ],
-        ),
-        shape="plaintext",
-    )
-
-    g.node(
-        "JournalAudit",
-        label=entity_node(
-            "JournalAudit",
-            [
-                ("id", "Integer (PK)"),
-                ("action", "String"),
-                ("resource", "String"),
-                ("details", "JSON"),
-                ("ipAddress", "String"),
-                ("status", "Enum (success/fail)"),
-                ("createdAt", "DateTime"),
+                "id",
+                "typeAnalyse",
+                "apercuContenu",
+                "niveauMenace",
+                "confiance",
+                "caracteristiques",
+                "recommandations",
+                "dateCreation",
             ],
         ),
         shape="plaintext",
@@ -249,9 +211,6 @@ def build_mcd_sprint3() -> Digraph:
     assoc("a_contient", "contient")
     assoc("a_concerne", "concerne")
     assoc("a_effectue", "effectue")
-    assoc("a_possede", "possède")
-    assoc("a_recoit", "reçoit")
-    assoc("a_genere", "génère")
 
     # ─── Arêtes avec cardinalités ───────────────────────────────────────────
     edge_attr = {"arrowhead": "none", "arrowtail": "none", "dir": "none"}
@@ -260,10 +219,9 @@ def build_mcd_sprint3() -> Digraph:
     # via la classe-association IdentifiantEmail
     g.edge("Utilisateur", "a_connecte", taillabel="0,n", **edge_attr)
     g.edge("a_connecte", "FournisseurEmail", headlabel="0,n", **edge_attr)
-    # IdentifiantEmail est porté par l'association se_connecte (classe-association)
     g.edge("a_connecte", "IdentifiantEmail",
            style="dashed", arrowhead="none", arrowtail="none", dir="none",
-           color="#777777", label="(porte les attributs)")
+           color="#777777")
 
     # Groupes de rangs pour un layout plus lisible
     with g.subgraph() as s:
@@ -278,11 +236,6 @@ def build_mcd_sprint3() -> Digraph:
         s.attr(rank="same")
         s.node("LotAnalyse")
         s.node("Analyse")
-    with g.subgraph() as s:
-        s.attr(rank="same")
-        s.node("Statistique")
-        s.node("Notification")
-        s.node("JournalAudit")
 
     # Utilisateur ─(1,n)─ importe ─(1,1)─ EmailImporté
     g.edge("Utilisateur", "a_importe", taillabel="1,n", **edge_attr)
@@ -307,18 +260,6 @@ def build_mcd_sprint3() -> Digraph:
     # Utilisateur ─(1,n)─ effectue ─(1,1)─ Analyse
     g.edge("Utilisateur", "a_effectue", taillabel="1,n", **edge_attr)
     g.edge("a_effectue", "Analyse", headlabel="1,1", **edge_attr)
-
-    # Utilisateur ─(1,1)─ possède ─(1,1)─ Statistique
-    g.edge("Utilisateur", "a_possede", taillabel="1,1", **edge_attr)
-    g.edge("a_possede", "Statistique", headlabel="1,1", **edge_attr)
-
-    # Utilisateur ─(1,n)─ reçoit ─(1,1)─ Notification
-    g.edge("Utilisateur", "a_recoit", taillabel="1,n", **edge_attr)
-    g.edge("a_recoit", "Notification", headlabel="1,1", **edge_attr)
-
-    # Utilisateur ─(1,n)─ génère ─(1,1)─ JournalAudit
-    g.edge("Utilisateur", "a_genere", taillabel="1,n", **edge_attr)
-    g.edge("a_genere", "JournalAudit", headlabel="1,1", **edge_attr)
 
     return g
 
