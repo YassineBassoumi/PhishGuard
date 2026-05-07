@@ -244,3 +244,73 @@ Le dossier `app/models/` contient deux types de fichiers:
 1. **`*_models.py`** - Modèles SQLAlchemy (tables DB)
 2. **`*_schemas.py`** - Schémas Pydantic (validation API)
 
+> 📚 La description détaillée de chaque table et de chaque schéma se trouve dans **[BACKEND_PART2_MODELS.md](BACKEND_PART2_MODELS.md)**.
+
+---
+
+## 🛣️ Couches de l'Application
+
+Le backend est découpé en 5 grandes couches qui correspondent chacune à un fichier de documentation dédié :
+
+| Couche | Description | Documentation |
+|---|---|---|
+| **1. Démarrage / Config** | `run.py`, `app/main.py`, `app/database.py` (lifespan, CORS, middlewares) | Le présent document (Partie 1) |
+| **2. Modèles** | SQLAlchemy ORM + schémas Pydantic | [BACKEND_PART2_MODELS.md](BACKEND_PART2_MODELS.md) |
+| **3. Routes API** | Tous les endpoints REST organisés par domaine | [BACKEND_PART3_ROUTES.md](BACKEND_PART3_ROUTES.md) |
+| **4. Services** | Logique métier (auth, détection ML, email, sessions, 2FA…) | [BACKEND_PART4_SERVICES.md](BACKEND_PART4_SERVICES.md) |
+| **5. Middlewares / Utils / Déploiement** | Rate limiting, monitoring DB, géolocalisation, déploiement | [BACKEND_PART5_FINAL.md](BACKEND_PART5_FINAL.md) |
+
+---
+
+## 🤖 Stack ML (résumé)
+
+| Modèle | Type | Dataset | Accuracy | Fichier |
+|---|---|---|---|---|
+| **Email / Texte** | LinearSVC + TF-IDF | ~19 741 emails | **97,5%** | `phishing_model.pkl` + `vectorizer.pkl` |
+| **URL** | Random Forest (23 features) | ~822 000 URLs | **94,6%** | `url_classifier.pkl` |
+| **Hybride** | Combinaison Email + URL | — | — | `hybrid_email_detector.py` |
+
+> 📚 Détail complet (preprocessing, features, choix d'algorithmes, métriques) dans **[ML_DETECTION_DETAILLEE.md](ML_DETECTION_DETAILLEE.md)**.
+
+---
+
+## 🔄 Cycle de Vie d'une Requête d'Analyse
+
+```
+1. Client (React)  →  POST /api/analyze-email  (Bearer JWT)
+2. Middleware rate_limit            (vérifie 100 req/min/IP)
+3. Middleware database_monitor      (compte connexions actives)
+4. Dépendance get_current_active_user (décode JWT, charge user)
+5. Dépendance get_db                (ouvre AsyncSession)
+6. Route analysis.analyze_email
+       ↓
+   PhishingDetector.analyze_email_hybrid()
+       ├─ EmailPreprocessor.preprocess()        (RFC822 → texte propre)
+       ├─ EmailDetector.analyze()               (LinearSVC + règles)
+       │     ├─ TF-IDF vectorize
+       │     ├─ model.decision_function()
+       │     └─ sigmoid → confidence %
+       ├─ Pour chaque URL extraite : URLDetector.analyze()
+       └─ Combine résultats + decision_trace
+7. StatsService.update_statistics()  (incrémente stats user + global)
+8. AnalysisHistory.insert()          (sauvegarde l'analyse)
+9. Réponse JSON  →  Client
+```
+
+---
+
+## ⚙️ Démarrer le Backend en Local
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate            # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                # remplir les valeurs
+python scripts/init_db.py           # crée les tables
+python run.py                       # http://localhost:8000
+```
+
+Documentation interactive Swagger : **http://localhost:8000/docs**
+Health check : **http://localhost:8000/api/health**
+

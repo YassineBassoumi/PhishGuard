@@ -49,41 +49,45 @@
 ### **analysis.py**
 **Rôle:** Analyse de phishing (URLs, emails, texte).
 
-**Endpoints:**
+**Endpoints (préfixe `/api`):**
 
-1. **POST `/api/analyze`**
-   - Analyse simple
-   - Body: `{content, content_type}`
-   - Types: url/email/text
-   - Utilise modèles ML
-   - Sauvegarde dans historique
-   - Retourne: threat_level, confidence, features, recommendations
+1. **POST `/api/analyze-email`**
+   - Analyse texte/email avec approche **hybride** par défaut (texte + URLs séparément)
+   - Body: `{content: str}`
+   - Auth requise
+   - Retourne: `threat_level`, `confidence`, `features`, `recommendations`, `decision_trace`, `url_results`
 
-2. **POST `/api/bulk-analyze`**
-   - Analyse en masse
-   - Body: `{items: [...], content_type}`
-   - Limite: 100 items max
-   - Traitement parallèle
-   - Retourne: résultats + statistiques
+2. **POST `/api/analyze-url`**
+   - Analyse une URL
+   - Body: `{url: str}`
+   - Auth requise
 
-3. **GET `/api/history`**
-   - Historique des analyses
-   - Query params: `?limit=50&offset=0`
-   - Pagination
-   - Filtres par date, type, threat_level
-   - Nécessite: authentification
+3. **POST `/api/analyze-email-hybrid`**
+   - Même chose que `/analyze-email` mais explicite l'usage hybride
 
-4. **GET `/api/statistics`**
-   - Statistiques utilisateur
-   - Total analyses
-   - Distribution des menaces
-   - Graphiques dashboard
-   - Nécessite: authentification
+4. **POST `/api/analyze-bulk`**
+   - Analyse en masse (jusqu'à 100 items)
+   - Body: `{items: ["email1…", …], content_type: "email"|"url"}`
+   - Traitement parallélisé via `asyncio`
+
+5. **POST `/api/analyze-progressive`** / **POST `/api/analyze-email-progressive`**
+   - Variantes pour analyse étape par étape (UI temps réel)
+
+6. **GET `/api/stats`**
+   - Statistiques utilisateur (cumulées)
+
+7. **GET `/api/history`**
+   - Historique des analyses (pagination)
+
+8. **GET `/api/threat-distribution`**
+   - Distribution `safe / suspicious / dangerous` pour graphiques dashboard
+
+9. **GET `/api/health`**
+   - Health check (statut service + chargement modèles)
 
 **Modèles ML Utilisés:**
-- `phishing_model.pkl` - Détection emails
-- `phishing_url_model_final_v3.pkl` - Détection URLs
-- `vectorizer.pkl` - Vectorisation texte
+- `phishing_model.pkl` (LinearSVC, 97,5%) + `vectorizer.pkl` — Détection emails/texte
+- `url_classifier.pkl` (Random Forest, 94,6%) — Détection URLs
 
 ---
 
