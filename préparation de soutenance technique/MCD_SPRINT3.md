@@ -46,20 +46,16 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 ## Description des entités (6)
 
 ### `Utilisateur`
+> Représentation **focalisée sur le sprint 3** : seuls les attributs utilisés
+> par les cas d'usage de ce sprint sont conservés (les autres — auth, 2FA,
+> profil, etc. — appartiennent au MCD du sprint 1).
+
 | Attribut | Rôle |
 |---|---|
 | <u>id</u> | Identifiant |
-| email | Adresse de connexion |
+| email | Adresse email du compte (référence pour OAuth, notification d'utilisateur) |
 | username | Pseudo affiché |
-| motDePasse | Mot de passe |
-| role | Rôle de l'acteur (utilisateur, administrateur, super-administrateur) |
-| estActif | Compte actif |
-| estBanni | Compte banni |
-| emailVerifie | Email validé |
-| doubleAuthActive | 2FA activée |
-| photoProfil | Avatar |
-| dateCreation | Date d'inscription |
-| derniereConnexion | Dernière connexion |
+| role | Rôle de l'acteur (utilisateur, administrateur, super-administrateur) — cf. Table 4.3 et 4.4 du rapport |
 
 ### `FournisseurEmail` *(nouveau — sprint 3)*
 | Attribut | Rôle |
@@ -192,15 +188,7 @@ erDiagram
         id PK
         email
         username
-        motDePasse
         role
-        estActif
-        estBanni
-        emailVerifie
-        doubleAuthActive
-        photoProfil
-        dateCreation
-        derniereConnexion
     }
     FournisseurEmail {
         id PK
