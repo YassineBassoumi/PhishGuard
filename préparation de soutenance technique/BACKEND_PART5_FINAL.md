@@ -176,50 +176,42 @@ allowed, remaining = check_rate_limit(
 
 ## 📁 Modèles ML (ml_models/)
 
-### **phishing_model.pkl**
-**Type:** SVM (Support Vector Machine)
-**Usage:** Détection de phishing dans emails
-**Features:** TF-IDF vectorization (5000 features)
-**Accuracy:** ~95%
+### **phishing_model.pkl** + **vectorizer.pkl**
+**Type:** LinearSVC (SVM linéaire) + TfidfVectorizer
+**Usage:** Détection de phishing dans emails / messages texte
+**Accuracy:** **97,5%** sur le set de test
 
 **Entraînement:**
-- Dataset: 10,000+ emails (phishing + légitimes)
-- Preprocessing: lowercase, remove stopwords
-- Vectorization: TF-IDF
-- Algorithm: LinearSVC
+- Dataset: ~19 741 emails (phishing + légitimes)
+- Preprocessing: lowercase, suppression stopwords, normalisation
+- Vectorization: TF-IDF (`vectorizer.pkl`)
+- Algorithme: LinearSVC (rapide, linéaire, bonne généralisation textes courts)
+- Convention de label : `1 = phishing`, `0 = légitime`
+- Score de confiance: sigmoïde appliquée à `decision_function()` (distance à l'hyperplan)
 
 ---
 
-### **phishing_url_model_final_v3.pkl**
-**Type:** SVM
+### **url_classifier.pkl**
+**Type:** Random Forest (binaire)
 **Usage:** Détection de phishing dans URLs
-**Features:** 12 caractéristiques extraites
-**Accuracy:** ~93%
+**Features:** 23 caractéristiques numériques
+**Accuracy:** **94,6%** sur le set de test
 
-**Features Utilisées:**
-1. IP address usage
-2. URL length
-3. URL shortener
-4. @ symbol
-5. Double slash
-6. Dash in domain
-7. Subdomain dots
-8. HTTPS
-9. Non-standard port
-10. Suspicious keywords
-11. Subdomain parts
-12. Suspicious TLD
+**Entraînement:**
+- Dataset: ~822 000 URLs (phishing + légitimes)
+- Algorithme: RandomForestClassifier (sklearn)
+- Pickle structuré : `{'model': rf, 'label_encoder': le, 'features': [...]}`
+
+**23 features (voir détail dans BACKEND_PART4_SERVICES.md § url\_detector):**
+use\_of\_ip, count., count@, count\_dir, count\_embed\_domian, short\_url, count%, count?, count-, count=, url\_length, hostname\_length, sus\_url, fd\_length, count-digits, count-letters, tld\_length, is\_https, subdomain\_count, path\_length, domain\_entropy, special\_char\_ratio, tld\_risk
 
 ---
 
-### **vectorizer.pkl**
-**Type:** TfidfVectorizer
-**Usage:** Vectorisation du texte des emails
-**Config:**
-- max_features: 5000
-- ngram_range: (1, 2)
-- min_df: 2
-- max_df: 0.95
+### **Évolution / Versionning des modèles**
+
+- Les modèles sont stockés en `.pkl` (pickle / joblib).
+- Le module `model_loader.py` les charge en **lazy loading** (au 1er appel uniquement, puis cache en mémoire).
+- En cas d'absence de fichier `.pkl` : fallback automatique sur la détection **rule-based** (mots-clés + heuristiques) pour ne jamais bloquer le service.
 
 ---
 

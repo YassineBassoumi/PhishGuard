@@ -54,24 +54,28 @@ token = create_access_token({"sub": user.email})
 **Méthodes:**
 
 1. **`analyze_email(content: str)`**
-   - Analyse contenu message/texte (SMS, corps d'email, etc.)
-   - Utilise modèle ML entraîné sur données SMS
-   - Accepte texte brut uniquement (pas besoin d'en-têtes email structurés)
-   - Extrait features de phishing
+   - Analyse contenu d'email / message texte
+   - Utilise un modèle LinearSVC entraîné sur ~19 741 emails (97,5% d'accuracy)
+   - Accepte du texte brut (pas besoin d'en-têtes RFC822)
+   - En cas d'email RFC822 collé brut, prétraitement automatique (extraction body, suppression headers/HTML/quoted-printable)
+   - Extrait des features explicables (mots-clés, urgence, demande de credentials, typosquatting…)
    - Retourne: (threat_level, confidence, features, recommendations)
 
 2. **`analyze_url(url: str)`**
-   - Analyse URL
-   - Utilise modèle ML URL
-   - Extrait features (12 caractéristiques)
+   - Analyse une URL
+   - Utilise un modèle Random Forest binaire entraîné sur ~822 000 URLs (94,6% d'accuracy)
+   - Extrait 23 features numériques (voir liste plus bas)
+   - Whitelist de domaines connus + IP privées court-circuitent le ML pour éviter les faux positifs
    - Retourne: (threat_level, confidence, features, recommendations)
 
-**Modèles Chargés:**
-- `phishing_model.pkl` - SVM pour messages (entraîné sur SMS spam)
-- `phishing_url_model_final_v3.pkl` - SVM pour URLs
+3. **`analyze_email_hybrid(content: str)`** *(approche par défaut)*
+   - Combine analyse texte + analyse de chaque URL extraite
+   - Renvoie aussi un `decision_trace` (ce que le ML brut a prédit vs la décision finale après règles)
 
-**Note:** Le modèle email est entraîné sur un dataset SMS, donc optimisé pour du texte court et informel plutôt que des emails structurés complets.
-- `vectorizer.pkl` - TF-IDF vectorizer
+**Modèles Chargés:**
+- `phishing_model.pkl` — LinearSVC (email/texte court)
+- `vectorizer.pkl` — TF-IDF vectorizer associé
+- `url_classifier.pkl` — Random Forest URL (chargé en lazy à la 1ère requête)
 
 **Singleton:**
 ```python
@@ -123,22 +127,42 @@ detection/
 **Classe:** `URLDetector`
 
 **Méthode:** `analyze(url: str)`
-- Parse l'URL
-- Extrait 12 features:
-  1. Utilise adresse IP
-  2. Longueur URL
-  3. URL shortener
-  4. Symbole @
-  5. Double slash
-  6. Tiret dans domaine
-  7. Nombre de sous-domaines
-  8. HTTPS
-  9. Port non-standard
-  10. Mots-clés suspects
-  11. Parties de sous-domaine
-  12. TLD suspect
-- Prédit avec modèle SVM
-- Génère recommandations
+
+Ordre de décision :
+1. Si l'URL pointe vers une **IP privée / loopback** → renvoie `safe` (95%) sans appeler le ML
+2. Si le domaine est dans la **whitelist** (`LEGITIMATE_DOMAINS`) → renvoie `safe` (98%)
+3. Sinon : extraction des **23 features** + prédiction Random Forest
+4. Fallback rule-based si le modèle n'a pas pu être chargé
+
+**23 features extraites :**
+| # | Feature | Description |
+|---|---|---|
+| 1 | `use_of_ip` | URL utilise une adresse IP au lieu d'un domaine |
+| 2 | `count.` | Nombre de points (`.`) |
+| 3 | `count@` | Nombre de `@` dans l'URL |
+| 4 | `count_dir` | Nombre de `/` dans le path |
+| 5 | `count_embed_domian` | Doubles slashes dans le path |
+| 6 | `short_url` | URL raccourcie (bit.ly, tinyurl, t.co, …) |
+| 7 | `count%` | Nombre de `%` (encodage suspect) |
+| 8 | `count?` | Nombre de `?` (paramètres) |
+| 9 | `count-` | Nombre de tirets dans l'URL |
+| 10 | `count=` | Nombre de `=` (paramètres GET) |
+| 11 | `url_length` | Longueur totale de l'URL |
+| 12 | `hostname_length` | Longueur du hostname |
+| 13 | `sus_url` | Présence de mots-clés suspects (login, verify, account…) |
+| 14 | `fd_length` | Longueur du 1er répertoire |
+| 15 | `count-digits` | Nombre de chiffres |
+| 16 | `count-letters` | Nombre de lettres |
+| 17 | `tld_length` | Longueur du TLD |
+| 18 | `is_https` | URL en HTTPS ? |
+| 19 | `subdomain_count` | Nombre de sous-domaines |
+| 20 | `path_length` | Longueur du path |
+| 21 | `domain_entropy` | Entropie de Shannon du hostname (chaînes aléatoires) |
+| 22 | `special_char_ratio` | Ratio de caractères non-alphanumériques |
+| 23 | `tld_risk` | TLD risqué (`tk`, `ml`, `ga`, `xyz`, `top`, `click`…) |
+
+- Prédit avec **Random Forest** (binaire : phishing / legitimate)
+- Génère recommandations contextualisées
 - Retourne: (threat_level, confidence, features, recommendations)
 
 #### **feature_extractors/email_features.py**
