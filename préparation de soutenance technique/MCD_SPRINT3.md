@@ -66,8 +66,6 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 | urlToken | URL d'échange du code → token |
 | urlApi | Endpoint API du fournisseur |
 | scopes | Permissions demandées |
-| estActif | Activable / désactivable |
-| dateCreation | Date d'enregistrement |
 
 ### `IdentifiantEmail` *(nouveau — sprint 3, classe-association)*
 | Attribut | Rôle |
@@ -75,10 +73,8 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 | <u>id</u> | Identifiant |
 | accessToken | Jeton d'accès court terme |
 | refreshToken | Jeton de rafraîchissement long terme |
-| expirationToken | Date d'expiration du token |
+| expirationToken | Date d'expiration du token (utilisée pour le refresh) |
 | adresseEmail | Adresse email du compte connecté |
-| dateCreation | Date de création |
-| dateMiseAJour | Dernière mise à jour |
 
 > Cette classe-association lie un `Utilisateur` à un `FournisseurEmail` et porte les jetons OAuth.
 
@@ -110,17 +106,15 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 | Attribut | Rôle |
 |---|---|
 | <u>id</u> | Identifiant |
-| typeAnalyse | Type d'analyse (email / url) |
-| apercuContenu | Aperçu du contenu analysé |
+| typeAnalyse | Type d'analyse (en sprint 3, toujours `email`) |
+| apercuContenu | Aperçu du contenu analysé (visible dans le détail bloc par bloc) |
 | niveauMenace | Niveau de menace (safe / suspicious / dangerous) |
 | confiance | Score de confiance |
-| caracteristiques | Caractéristiques détectées |
-| recommandations | Recommandations générées |
-| dateCreation | Date de l'analyse |
+| dateCreation | Date de l'analyse (ordre d'affichage dans le rapport) |
 
 ---
 
-## Description des associations (7)
+## Description des associations (6)
 
 | Association | E1 (cardinalité) | Verbe | E2 (cardinalité) | Sens métier |
 |---|---|---|---|---|
@@ -128,9 +122,8 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 | **importe** | `Utilisateur` (1,n) | importe | `EmailImporté` (1,1) | Tout email importé l'est par un et un seul utilisateur. |
 | **provient_de** | `EmailImporté` (1,1) | provient_de | `FournisseurEmail` (1,n) | Chaque email importé vient d'un seul fournisseur. |
 | **lance** | `Utilisateur` (1,n) | lance | `LotAnalyse` (1,1) | Un utilisateur lance plusieurs lots ; un lot a un seul lanceur. |
-| **contient** | `LotAnalyse` (1,n) | contient | `Analyse` (0,1) | Un lot contient plusieurs analyses ; une analyse appartient au plus à un lot (les analyses unitaires des sprints précédents ont 0 lot). |
+| **contient** | `LotAnalyse` (1,n) | contient | `Analyse` (1,1) | Un lot contient plusieurs analyses ; en sprint 3 toute analyse appartient à un lot (l'auteur de l'analyse se déduit du lot via `lance`). |
 | **concerne** | `Analyse` (0,1) | concerne | `EmailImporté` (0,n) | Une analyse peut concerner un email importé OU un contenu manuel collé (donc 0,1). |
-| **effectue** | `Utilisateur` (1,n) | effectue | `Analyse` (1,1) | Toute analyse a un auteur. |
 
 ---
 
@@ -140,7 +133,8 @@ Le MCD ne représente que les entités **directement impliquées dans les cas d'
 2. **`IdentifiantEmail` modélisée en classe-association** — Les attributs (jetons, expiration, adresse email connectée) n'ont de sens **que** dans le contexte de la relation entre un utilisateur et un fournisseur. C'est l'usage canonique d'une classe-association en Merise.
 3. **`EmailImporté` modélisé conceptuellement** — Le MCD est un modèle métier, pas physique. Un utilisateur **manipule** ses emails même s'ils ne sont pas persistés en base : ils transitent via les API Gmail / Microsoft Graph.
 4. **`LotAnalyse` séparé d'`Analyse`** — Permet de représenter le rapport agrégé du cas d'usage « analyser en masse » et de tracer l'origine du lot (manuel, gmail, outlook).
-5. **Cardinalités `(0,1)` sur `Analyse → LotAnalyse`** — Les analyses unitaires héritées des sprints précédents conservent leur sens (sans appartenir à un lot).
+5. **Cardinalité `(1,1)` sur `Analyse → LotAnalyse`** — En sprint 3, toute analyse est issue d'un lot (multi-sélection ou saisie manuelle de Table 4.6). L'auteur de l'analyse se déduit du lot, ce qui rend une association directe `effectue` redondante.
+6. **Attributs limités au strict nécessaire** — Les métadonnées techniques (dateCreation/dateMiseAJour des tokens, estActif d'un fournisseur, caractéristiques/recommandations ML internes) sont absentes : elles n'apparaissent dans aucun cas d'usage du sprint.
 
 ---
 
@@ -180,9 +174,8 @@ erDiagram
     Utilisateur ||--o{ EmailImporte : "importe"
     FournisseurEmail ||--o{ EmailImporte : "fournit"
     Utilisateur ||--o{ LotAnalyse : "lance"
-    LotAnalyse ||--o{ Analyse : "contient"
+    LotAnalyse ||--|{ Analyse : "contient"
     Analyse }o--o| EmailImporte : "concerne"
-    Utilisateur ||--o{ Analyse : "effectue"
 
     Utilisateur {
         id PK
@@ -197,8 +190,6 @@ erDiagram
         urlToken
         urlApi
         scopes
-        estActif
-        dateCreation
     }
     IdentifiantEmail {
         id PK
@@ -206,8 +197,6 @@ erDiagram
         refreshToken
         expirationToken
         adresseEmail
-        dateCreation
-        dateMiseAJour
     }
     EmailImporte {
         messageId PK
@@ -235,8 +224,6 @@ erDiagram
         apercuContenu
         niveauMenace
         confiance
-        caracteristiques
-        recommandations
         dateCreation
     }
 ```

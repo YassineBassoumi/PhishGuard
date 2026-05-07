@@ -103,8 +103,6 @@ def build_mcd_sprint3() -> Digraph:
                 "urlToken",
                 "urlApi",
                 "scopes",
-                "estActif",
-                "dateCreation",
             ],
         ),
         shape="plaintext",
@@ -120,8 +118,6 @@ def build_mcd_sprint3() -> Digraph:
                 "refreshToken",
                 "expirationToken",
                 "adresseEmail",
-                "dateCreation",
-                "dateMiseAJour",
             ],
         ),
         shape="plaintext",
@@ -174,8 +170,6 @@ def build_mcd_sprint3() -> Digraph:
                 "apercuContenu",
                 "niveauMenace",
                 "confiance",
-                "caracteristiques",
-                "recommandations",
                 "dateCreation",
             ],
         ),
@@ -202,7 +196,6 @@ def build_mcd_sprint3() -> Digraph:
     assoc("a_lance", "lance")
     assoc("a_contient", "contient")
     assoc("a_concerne", "concerne")
-    assoc("a_effectue", "effectue")
 
     # ─── Arêtes avec cardinalités ───────────────────────────────────────────
     edge_attr = {"arrowhead": "none", "arrowtail": "none", "dir": "none"}
@@ -241,17 +234,16 @@ def build_mcd_sprint3() -> Digraph:
     g.edge("Utilisateur", "a_lance", taillabel="1,n", **edge_attr)
     g.edge("a_lance", "LotAnalyse", headlabel="1,1", **edge_attr)
 
-    # LotAnalyse ─(1,n)─ contient ─(0,1)─ Analyse
+    # LotAnalyse ─(1,n)─ contient ─(1,1)─ Analyse
+    # En sprint 3, toute Analyse appartient à un LotAnalyse.
     g.edge("LotAnalyse", "a_contient", taillabel="1,n", **edge_attr)
-    g.edge("a_contient", "Analyse", headlabel="0,1", **edge_attr)
+    g.edge("a_contient", "Analyse", headlabel="1,1", **edge_attr)
 
     # Analyse ─(0,1)─ concerne ─(0,n)─ EmailImporté
+    # (0,1) car les analyses issues d'une saisie manuelle (cas Table 4.6) ne
+    # pointent pas sur un EmailImporté.
     g.edge("Analyse", "a_concerne", taillabel="0,1", **edge_attr)
     g.edge("a_concerne", "EmailImporte", headlabel="0,n", **edge_attr)
-
-    # Utilisateur ─(1,n)─ effectue ─(1,1)─ Analyse
-    g.edge("Utilisateur", "a_effectue", taillabel="1,n", **edge_attr)
-    g.edge("a_effectue", "Analyse", headlabel="1,1", **edge_attr)
 
     return g
 
