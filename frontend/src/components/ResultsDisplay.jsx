@@ -1,6 +1,26 @@
+import { useState } from 'react';
 import './ResultsDisplay.css';
 
+// Simple verdict row used inside the decision-trace panel.
+// Shows only a label and a colored verdict (no scores, URLs, or rule names).
+const SimpleVerdictRow = ({ icon, label, verdict }) => {
+    const map = {
+        safe: { color: '#10b981', text: 'Sûr' },
+        suspicious: { color: '#f59e0b', text: 'Suspect' },
+        dangerous: { color: '#ef4444', text: 'Dangereux' },
+    };
+    const v = map[verdict] || { color: '#9ca3af', text: verdict || '—' };
+    return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', marginBottom: '0.5rem' }}>
+            <span>{icon} {label}</span>
+            <strong style={{ color: v.color }}>{v.text}</strong>
+        </div>
+    );
+};
+
 const ResultsDisplay = ({ results, isAnalyzing }) => {
+    const [showTrace, setShowTrace] = useState(false);
+
     if (isAnalyzing) {
         return (
             <div className="results-container fade-in">
@@ -190,6 +210,59 @@ const ResultsDisplay = ({ results, isAnalyzing }) => {
                     </div>
                 )}
             </div>
+
+            {/* Decision Trace - Transparency for the user/auditor */}
+            {results.decision_trace && (
+                <div className="glass-card" style={{ marginTop: '1.5rem' }}>
+                    <button
+                        onClick={() => setShowTrace(!showTrace)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            background: 'transparent', border: 'none', color: 'inherit',
+                            cursor: 'pointer', fontSize: '1rem', fontWeight: 600,
+                            padding: '0.25rem 0', width: '100%'
+                        }}
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9C9.3251 8.33167 9.78915 7.76811 10.4 7.40913C11.0108 7.05016 11.7289 6.91894 12.4272 7.03871C13.1255 7.15849 13.7588 7.52152 14.2151 8.06353C14.6713 8.60553 14.9211 9.29152 14.92 10C14.92 12 11.92 13 11.92 13M12 17H12.01" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span>Détails de la décision IA</span>
+                        <span style={{ marginLeft: 'auto', transform: showTrace ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+                    </button>
+
+                    {showTrace && (
+                        <div style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
+                            {/* Preprocessing notice */}
+                            {results.decision_trace.preprocessed && (
+                                <div style={{ marginBottom: '0.5rem', padding: '0.6rem 0.9rem', background: 'rgba(99, 102, 241, 0.08)', borderRadius: '6px', borderLeft: '3px solid #6366f1', fontSize: '0.8rem' }}>
+                                    🧹 Email brut détecté — en-têtes et code HTML automatiquement nettoyés avant analyse.
+                                </div>
+                            )}
+
+                            {/* Text verdict (general only) */}
+                            <SimpleVerdictRow icon="📝" label="Analyse du texte" verdict={results.decision_trace.ml_email?.verdict} />
+
+                            {/* URL verdict (general - most severe wins, no individual URLs) */}
+                            {(() => {
+                                const urls = results.decision_trace.url_models || [];
+                                if (urls.length === 0) return null;
+                                let overall = 'safe';
+                                if (urls.some(u => u.verdict === 'dangerous')) overall = 'dangerous';
+                                else if (urls.some(u => u.verdict === 'suspicious')) overall = 'suspicious';
+                                return <SimpleVerdictRow icon="🔗" label="Analyse des liens" verdict={overall} />;
+                            })()}
+
+                            {/* Override notice in plain language */}
+                            {results.decision_trace.ml_overridden && (
+                                <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', borderLeft: '3px solid #f59e0b', fontSize: '0.85rem' }}>
+                                    ℹ️ Le verdict final a été ajusté après combinaison des analyses du texte et des liens.
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

@@ -1,117 +1,169 @@
 """
-URL Feature Extractor - UPDATED to match retrained model
-Extracts exactly 12 features matching the Colab training notebook
+URL Feature Extractor - 23 features for RandomForest classifier
+Trained on 822K URLs (94.6% accuracy, binary: legitimate/phishing)
 """
 
-import ipaddress
+import re
+import math
 from urllib.parse import urlparse
+from tld import get_tld
+
+
+def normalize_url(url):
+    """Ensure URL has a protocol so urlparse works correctly."""
+    url = str(url).strip()
+    if not url.startswith(('http://', 'https://')):
+        url = 'http://' + url
+    return url
 
 
 def extract_url_features(url):
     """
-    Extract 12 URL features matching the retrained model
-    This MUST match the training code exactly for accurate predictions
+    Extract 23 URL features as a dict for the phishing detection model.
+    Keys match the trained model's feature names exactly.
     """
-    features = []
-    
+    url = normalize_url(url)
+    tld = get_tld(url, fail_silently=True)
+
     try:
-        parsed = urlparse(url.strip())
-        hostname = parsed.netloc.lower().replace('www.', '')
-        path = parsed.path.lower()
-        full_url = url.lower()
-        
-        # 1. IP Address (but allow private IPs)
+        parsed = urlparse(url)
+    except Exception:
+        parsed = None
+
+    # --- helper lambdas ---
+    def _hostname():
         try:
-            ip = ipaddress.ip_address(hostname.split(':')[0])  # Remove port if present
-            # Check if it's a private IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 127.x.x.x)
-            if ip.is_private or ip.is_loopback:
-                features.append(1)  # Private IPs are safe (local network)
-            else:
-                features.append(-1)  # Public IPs are suspicious
-        except:
-            features.append(1)
-        
-        # 2. URL Length
-        length = len(url)
-        features.append(1 if length < 54 else 0 if length <= 75 else -1)
-        
-        # 3. URL Shortener - EXACT MATCH ONLY
-        shorteners = [
-            'bit.ly', 'goo.gl', 'tinyurl.com', 't.co', 'ow.ly', 'is.gd', 
-            'buff.ly', 'rb.gy', 'short.link', 'tiny.cc', 'tr.im', 
-            'shorturl.at', 'cutt.ly', 'short.io', 't.ly', 'bitly.com', 
-            'rebrand.ly', 'short.cm', 'gear.id', 'short.gy', 'clck.ru',
-            'tiny.one', 'link.to', 'soo.gd', 'v.gd', 'lnkd.in', 'tinycc.com',
-            'shorte.st', 'go2l.ink', 'x.co', 'yfrog.com', 'migre.me',
-            'ff.im', 'url4.eu', 'twit.ac', 'su.pr', 'twurl.nl', 'snipurl.com',
-            'short.to', 'budurl.com', 'ping.fm', 'post.ly', 'just.as',
-            'bkite.com', 'snipr.com', 'fic.kr', 'loopt.us', 'doiop.com',
-            'short.ie', 'kl.am', 'wp.me', 'rubyurl.com', 'om.ly', 'to.ly',
-            'bit.do', 'db.tt', 'qr.ae', 'adf.ly', 'cur.lv', 'ity.im',
-            'q.gs', 'po.st', 'bc.vc', 'twitthis.com', 'u.to', 'j.mp',
-            'buzurl.com', 'cutt.us', 'u.bb', 'yourls.org', 'prettylinkpro.com',
-            'scrnch.me', 'vzturl.com', 'qr.net', '1url.com', 'tweez.me',
-            'link.zip.net'
-        ]
-        # Only match if hostname exactly matches or ends with the shortener domain
-        is_shortener = any(
-            hostname == s or hostname.endswith('.' + s)
-            for s in shorteners
-        )
-        features.append(-1 if is_shortener else 1)
-        
-        # 4. @ Symbol
-        features.append(-1 if '@' in url else 1)
-        
-        # 5. Double slash redirecting
-        features.append(-1 if url.find('//', 8) > -1 else 1)
-        
-        # 6. Dash in domain
-        features.append(0 if '-' in hostname else 1)
-        
-        # 7. Subdomain dots
-        dots = hostname.count('.')
-        features.append(1 if dots == 1 else 0 if dots == 2 else -1)
-        
-        # 8. HTTPS
-        features.append(1 if parsed.scheme == 'https' else -1)
-        
-        # 9. Non-standard port
-        features.append(-1 if parsed.port and parsed.port not in [80, 443] else 1)
-        
-        # 10. Suspicious keywords in domain
-        suspicious = [
-            'verify', 'secure', 'account', 'update', 'confirm', 
-            'banking', 'password', 'wallet', 'login', 'signin',
-            'reset', 'billing', 'payment', 'suspended', 'locked',
-            'verification', 'authenticate', 'credential', 'authorize'
-        ]
-        features.append(-1 if any(w in hostname for w in suspicious) else 1)
-        
-        # 11. Subdomain parts
-        parts = len(hostname.split('.'))
-        features.append(1 if parts == 2 else 0 if parts == 3 else -1)
-        
-        # 12. Suspicious TLD
-        bad_tlds = ['.tk', '.ml', '.ga', '.cf', '.top', '.xyz', '.work', '.gq', 
-                    '.info', '.click', '.link', '.download', '.stream', '.science',
-                    '.party', '.review', '.trade', '.webcam', '.win', '.bid']
-        features.append(-1 if any(hostname.endswith(t) for t in bad_tlds) else 1)
-        
-    except Exception as e:
-        # Return neutral features on error
-        features = [0] * 12
-    
-    return features
+            return urlparse(url).hostname or ''
+        except Exception:
+            return ''
 
+    def _netloc():
+        try:
+            return urlparse(url).netloc
+        except Exception:
+            return ''
 
-# Legacy class for backward compatibility
-class URLFeatureExtractor:
-    """Legacy wrapper - use extract_url_features() function instead"""
-    
-    def __init__(self, url):
-        self.url = url
-    
-    def extract_features(self):
-        """Extract 12 features (new model format)"""
-        return extract_url_features(self.url)
+    def _path():
+        try:
+            return urlparse(url).path
+        except Exception:
+            return ''
+
+    hostname = _hostname()
+    netloc = _netloc()
+    path = _path()
+
+    # 1. IP address in URL
+    ip_match = re.search(
+        r'(([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.'
+        r'([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\/)|'
+        r'((0x[0-9a-fA-F]{1,2})\.(0x[0-9a-fA-F]{1,2})\.(0x[0-9a-fA-F]{1,2})\.(0x[0-9a-fA-F]{1,2})\/)'
+        r'(?:[a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}', url)
+    use_of_ip = 1 if ip_match else 0
+
+    # 2-5. Character counts
+    count_dot = url.count('.')
+    count_at = url.count('@')
+    count_dir = path.count('/')
+    count_embed = path.count('//')
+
+    # 6. URL shortener
+    shortener_match = re.search(
+        r'bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
+        r'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
+        r'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
+        r'doiop\.com|short\.ie|kl\.am|wp\.me|rubyurl\.com|om\.ly|to\.ly|bit\.do|lnkd\.in|'
+        r'db\.tt|qr\.ae|adf\.ly|bitly\.com|cur\.lv|tinyurl\.com|ity\.im|'
+        r'q\.gs|po\.st|bc\.vc|twitthis\.com|u\.to|j\.mp|buzurl\.com|cutt\.us|u\.bb|yourls\.org|'
+        r'prettylinkpro\.com|scrnch\.me|filoops\.info|vzturl\.com|qr\.net|1url\.com|tweez\.me|v\.gd|'
+        r'link\.zip\.net', url)
+    short_url = 1 if shortener_match else 0
+
+    # 7-10. More character counts
+    count_pct = url.count('%')
+    count_ques = url.count('?')
+    count_hyphen = url.count('-')
+    count_equal = url.count('=')
+
+    # 11-12. Length features
+    url_length = len(url)
+    hostname_length = len(netloc)
+
+    # 13. Suspicious words
+    sus_match = re.search(
+        r'PayPal|login|signin|bank|account|update|free|lucky|service|bonus|ebayisapi|webscr',
+        url, re.IGNORECASE)
+    sus_url = 1 if sus_match else 0
+
+    # 14. First directory length
+    try:
+        fd_length = len(path.split('/')[1])
+    except Exception:
+        fd_length = 0
+
+    # 15-16. Digit and letter counts
+    count_digits = sum(c.isnumeric() for c in url)
+    count_letters = sum(c.isalpha() for c in url)
+
+    # 17. TLD length
+    tld_length = len(tld) if tld else -1
+
+    # 18. HTTPS flag
+    is_https = 1 if url.startswith('https://') else 0
+
+    # 19. Subdomain count
+    host_parts = hostname.split('.') if hostname else []
+    subdomain_count = max(0, len(host_parts) - 2)
+
+    # 20. Path length
+    path_length = len(path)
+
+    # 21. Domain entropy (Shannon)
+    domain_entropy = 0.0
+    if hostname:
+        freq = {}
+        for c in hostname:
+            freq[c] = freq.get(c, 0) + 1
+        for count in freq.values():
+            p = count / len(hostname)
+            domain_entropy -= p * math.log2(p)
+        domain_entropy = round(domain_entropy, 4)
+
+    # 22. Special character ratio
+    if url:
+        specials = sum(not c.isalnum() for c in url)
+        special_char_ratio = round(specials / len(url), 4)
+    else:
+        special_char_ratio = 0.0
+
+    # 23. Risky TLD
+    RISKY_TLDS = {'tk', 'ml', 'ga', 'cf', 'gq', 'xyz', 'top', 'pw', 'cc',
+                  'buzz', 'work', 'click', 'link', 'info', 'online', 'site',
+                  'club', 'icu', 'live', 'stream'}
+    tld_risk = 1 if (tld and tld.lower() in RISKY_TLDS) else 0
+
+    return {
+        'use_of_ip': use_of_ip,
+        'count.': count_dot,
+        'count@': count_at,
+        'count_dir': count_dir,
+        'count_embed_domian': count_embed,
+        'short_url': short_url,
+        'count%': count_pct,
+        'count?': count_ques,
+        'count-': count_hyphen,
+        'count=': count_equal,
+        'url_length': url_length,
+        'hostname_length': hostname_length,
+        'sus_url': sus_url,
+        'fd_length': fd_length,
+        'count-digits': count_digits,
+        'count-letters': count_letters,
+        'tld_length': tld_length,
+        'is_https': is_https,
+        'subdomain_count': subdomain_count,
+        'path_length': path_length,
+        'domain_entropy': domain_entropy,
+        'special_char_ratio': special_char_ratio,
+        'tld_risk': tld_risk,
+    }

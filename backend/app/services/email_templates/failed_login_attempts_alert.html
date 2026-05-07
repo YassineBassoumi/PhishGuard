@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .icon { font-size: 48px; margin-bottom: 10px; }
+        h1 { color: #b91c1c; font-size: 24px; margin: 0 0 10px 0; }
+        .subtitle { color: #666; font-size: 14px; }
+        .attempt-details {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .attempt-details p { margin: 8px 0; }
+        .attempt-details strong { color: #991b1b; }
+        .count-box {
+            background-color: #b91c1c;
+            color: white;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .count-box .number {
+            font-size: 36px;
+            font-weight: bold;
+            display: block;
+        }
+        .count-box .label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .action-box {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .action-box h3 {
+            color: #1e40af;
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #ef4444;
+            color: white;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">🚨</div>
+            <h1>Multiple Failed Login Attempts</h1>
+            <p class="subtitle">Someone is trying to access your PhishGuard account</p>
+        </div>
+
+        <p>Hi <strong>{{ username }}</strong>,</p>
+
+        <p>We detected multiple failed login attempts on <strong>your account</strong>. This usually means someone is trying to guess your password.</p>
+
+        <div class="count-box">
+            <span class="number">{{ failed_count }}</span>
+            <span class="label">failed login attempts</span>
+        </div>
+
+        <div class="attempt-details">
+            <p><strong>IP Address:</strong> {{ ip_address }}</p>
+            <p><strong>Location:</strong> {{ location }}</p>
+            <p><strong>Last attempt:</strong> {{ last_attempt_at }}</p>
+            <p><strong>Threshold reached:</strong> {{ threshold }} attempts</p>
+        </div>
+
+        <div class="action-box">
+            <h3>🛡️ What you should do</h3>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #1e3a8a;">
+                <li><strong>If this wasn't you:</strong> change your password immediately and enable 2FA</li>
+                <li><strong>If this was you</strong> (forgot password): use the "Forgot password" link instead</li>
+                <li>Review your active sessions and revoke any you don't recognize</li>
+                <li>Consider enabling two-factor authentication for stronger protection</li>
+            </ul>
+            <center>
+                <a href="{{ secure_url }}" class="button">Secure My Account</a>
+            </center>
+        </div>
+
+        <p style="margin-top: 30px; color: #666; font-size: 14px;">
+            <strong>Note:</strong> No one has gained access to your account yet — these were all failed attempts. But you should still take action to keep it that way.
+        </p>
+
+        <div class="footer">
+            <p>This is an automated security notification from PhishGuard AI</p>
+            <p>You're receiving this because failed login attempts exceeded the safety threshold on your account</p>
+            <p>© 2026 PhishGuard AI. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

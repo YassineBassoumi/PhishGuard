@@ -15,6 +15,7 @@ import os
 
 from app.models.user_models import User
 from app.models.auth_schemas import TokenData
+from app.utils.db_retry import retry_on_db_error
 from app.database import get_db
 
 # OAuth2 scheme for form-based login
@@ -80,12 +81,14 @@ class AuthService:
         return encoded_jwt
     
     @staticmethod
+    @retry_on_db_error(max_retries=3, delay=0.5)
     async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
         """Get user by username"""
         result = await db.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none()
     
     @staticmethod
+    @retry_on_db_error(max_retries=3, delay=0.5)
     async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
         """Get user by email"""
         result = await db.execute(select(User).where(User.email == email))

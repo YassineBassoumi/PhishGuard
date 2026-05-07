@@ -20,6 +20,7 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.20
 email-validator==2.3.0
+tld==0.13.2
 tldextract==5.1.2
 pyotp==2.9.0
 qrcode==8.0

@@ -173,7 +173,53 @@ async def login(
                 
                 # Start background task
                 asyncio.create_task(send_brute_force_alert_background())
-            
+
+            # ── Per-user failed-login tracking (alerts the TARGET user) ──
+            # Look up whether this username actually exists so we can warn the
+            # real account owner when someone is trying to break in.
+            target_user = await auth_service.get_user_by_username(db, form_data.username)
+            if target_user:
+                user_alert_triggered = await rate_limiter.record_failed_login_per_user(
+                    client_ip, form_data.username
+                )
+                if user_alert_triggered:
+                    async def send_user_failed_login_alert_background():
+                        async for notification_db in get_notification_db():
+                            try:
+                                from sqlalchemy import select
+                                result = await notification_db.execute(
+                                    select(User).where(User.id == target_user.id)
+                                )
+                                fresh_user = result.scalar_one()
+
+                                stats = rate_limiter.get_user_failed_login_stats(
+                                    form_data.username
+                                )
+                                location = await get_location_from_ip(client_ip)
+
+                                await notification_service.send_failed_login_attempts_alert(
+                                    db=notification_db,
+                                    user=fresh_user,
+                                    attempt_details={
+                                        'failed_count': stats['failed_attempts'],
+                                        'threshold': stats['threshold'],
+                                        'ip_address': client_ip,
+                                        'location': location,
+                                        'last_attempt_at': datetime.utcnow().strftime(
+                                            '%Y-%m-%d %H:%M:%S UTC'
+                                        ),
+                                    }
+                                )
+                                break
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to send per-user failed-login alert: {str(e)}",
+                                    exc_info=True,
+                                )
+                                break
+
+                    asyncio.create_task(send_user_failed_login_alert_background())
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Nom d'utilisateur ou mot de passe incorrect",
@@ -296,19 +342,40 @@ async def login(
             from app.utils.geolocation import get_location_from_ip
             
             async def send_login_notification_background():
-                """Background task to send notification with its own DB session"""
+                """Background task to send notification with its own DB session.
+
+                Only fires the new-login alert if the (user, IP, device) combination
+                has never been seen before. This avoids the previous behaviour where
+                EVERY login produced a notification, training users to ignore them.
+                """
                 async for notification_db in get_notification_db():
                     try:
-                        # Fetch fresh user object in this session
+                        # Skip the alert if this device has been seen before for this user.
+                        # We exclude the freshly-created session (jti) so it doesn't
+                        # falsely match itself.
+                        already_known = await session_service.is_known_device(
+                            db=notification_db,
+                            user_id=user_id,
+                            ip_address=client_ip,
+                            user_agent=user_agent,
+                            exclude_jti=jti,
+                        )
+                        if already_known:
+                            logger.info(
+                                f"Login from known device for user {user_id} "
+                                f"(IP={client_ip}) — alert suppressed"
+                            )
+                            return
+
+                        # New device → fetch user and fire the alert
                         from sqlalchemy import select
                         result = await notification_db.execute(
                             select(User).where(User.id == user_id)
                         )
                         fresh_user = result.scalar_one()
-                        
-                        # Get location from IP
+
                         location = await get_location_from_ip(client_ip)
-                        
+
                         await notification_service.send_new_login_alert(
                             db=notification_db,
                             user=fresh_user,
@@ -372,6 +439,7 @@ async def update_current_user(
     """
     try:
         # Update email if provided
+        old_email = None
         if user_update.email and user_update.email != current_user.email:
             existing_email = await auth_service.get_user_by_email(db, user_update.email)
             if existing_email:
@@ -379,6 +447,7 @@ async def update_current_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered"
                 )
+            old_email = current_user.email
             current_user.email = user_update.email
         
         # Update username if provided
@@ -460,7 +529,53 @@ async def update_current_user(
                 asyncio.create_task(send_notification_background())
             except Exception as e:
                 logger.error(f"Failed to queue password change notification: {str(e)}")
-        
+
+        # ── Email changed notification ──
+        if old_email:
+            try:
+                # Reuse the same IP extraction logic
+                email_change_ip = request.client.host if request and request.client else 'Unknown'
+                if request:
+                    forwarded_for = request.headers.get('X-Forwarded-For')
+                    if forwarded_for:
+                        email_change_ip = forwarded_for.split(',')[0].strip()
+
+                # Capture data for background task before commit
+                email_user_id = current_user.id
+                email_old = old_email
+                email_new = current_user.email
+                email_username = current_user.username
+
+                async def send_email_change_notification_background():
+                    async for notification_db in get_db():
+                        try:
+                            from sqlalchemy import select
+                            result = await notification_db.execute(
+                                select(User).where(User.id == email_user_id)
+                            )
+                            fresh_user = result.scalar_one()
+
+                            location = await get_location_from_ip(email_change_ip)
+
+                            await notification_service.send_email_changed_alert(
+                                db=notification_db,
+                                user=fresh_user,
+                                old_email=email_old,
+                                new_email=email_new,
+                                change_details={
+                                    'changed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                    'ip_address': email_change_ip,
+                                    'location': location,
+                                }
+                            )
+                        finally:
+                            await notification_db.close()
+                        break
+
+                asyncio.create_task(send_email_change_notification_background())
+            except Exception as e:
+                logger.error(f"Failed to queue email change notification: {str(e)}")
+
         await db.commit()
         await db.refresh(current_user)
         

@@ -79,84 +79,6 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Failed to log notification: {str(e)}")
     
-    async def send_dangerous_email_alert(
-        self,
-        db: AsyncSession,
-        user: User,
-        email_details: Dict
-    ) -> bool:
-        """
-        Send alert when dangerous email is detected
-        
-        Args:
-            db: Database session
-            user: User object
-            email_details: Dict with email info (from, subject, date, threat_level, confidence, red_flags)
-        """
-        try:
-            # Get user preferences
-            preferences = await self.get_or_create_preferences(db, user.id)
-            
-            if not preferences.email_notifications_enabled or not preferences.dangerous_email_alerts:
-                logger.info(f"Dangerous email alerts disabled for user {user.id}")
-                return False
-            
-            # Determine recipient email
-            recipient_email = preferences.notification_email or user.email
-            
-            # Prepare template data
-            template_data = {
-                'username': user.username,
-                'email_from': email_details.get('from', 'Unknown'),
-                'email_subject': email_details.get('subject', 'No Subject'),
-                'email_date': email_details.get('date', 'Unknown'),
-                'threat_level': email_details.get('threat_level', 'DANGEROUS').upper(),
-                'confidence': email_details.get('confidence', 0),
-                'red_flags': email_details.get('red_flags', []),
-                'dashboard_url': f"{self.frontend_url}/dashboard"
-            }
-            
-            # Render email template
-            template = jinja_env.get_template('dangerous_email_alert.html')
-            html_content = template.render(**template_data)
-            
-            # Send email
-            subject = f"⚠️ Dangerous Email Detected - {email_details.get('subject', 'Unknown')[:50]}"
-            success = await email_service.send_email(
-                to_email=recipient_email,
-                subject=subject,
-                html_content=html_content
-            )
-            
-            # Log notification
-            await self._log_notification(
-                db=db,
-                user_id=user.id,
-                notification_type='dangerous_email_alert',
-                subject=subject,
-                status='sent' if success else 'failed',
-                error_message=None if success else 'Failed to send email'
-            )
-            
-            if success:
-                logger.info(f"Sent dangerous email alert to user {user.id}")
-            else:
-                logger.error(f"Failed to send dangerous email alert to user {user.id}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"Error sending dangerous email alert: {str(e)}", exc_info=True)
-            await self._log_notification(
-                db=db,
-                user_id=user.id,
-                notification_type='dangerous_email_alert',
-                subject='Dangerous Email Alert',
-                status='failed',
-                error_message=str(e)
-            )
-            return False
-    
     async def send_new_login_alert(
         self,
         db: AsyncSession,
@@ -390,6 +312,169 @@ class NotificationService:
             )
             return False
     
+    async def send_email_changed_alert(
+        self,
+        db: AsyncSession,
+        user: User,
+        old_email: str,
+        new_email: str,
+        change_details: Dict
+    ) -> bool:
+        """
+        Send alert when the user's account email is changed.
+
+        IMPORTANT: This sends to BOTH the old and new email addresses.
+        - Old address: so the legitimate owner is warned if a hijacker swapped the email.
+        - New address: confirmation that the change happened.
+
+        Args:
+            db: Database session
+            user: User object (already updated with new_email)
+            old_email: Email address before the change
+            new_email: Email address after the change
+            change_details: Dict with change info (ip_address, location, changed_at)
+        """
+        try:
+            preferences = await self.get_or_create_preferences(db, user.id)
+            if not preferences.email_notifications_enabled:
+                logger.info(f"Email notifications disabled for user {user.id}")
+                return False
+
+            template_data = {
+                'username': user.username,
+                'old_email': old_email,
+                'new_email': new_email,
+                'changed_at': change_details.get('changed_at', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'ip_address': change_details.get('ip_address', 'Unknown'),
+                'location': change_details.get('location', 'Unknown Location'),
+                'secure_url': f"{self.frontend_url}/settings?action=secure"
+            }
+
+            template = jinja_env.get_template('email_changed_alert.html')
+            html_content = template.render(**template_data)
+
+            subject = "⚠️ Your PhishGuard Account Email Was Changed"
+
+            # Send to BOTH addresses so the legitimate owner is warned even if attacker swapped the email
+            success_old = await email_service.send_email(
+                to_email=old_email,
+                subject=subject,
+                html_content=html_content
+            )
+            success_new = await email_service.send_email(
+                to_email=new_email,
+                subject=subject,
+                html_content=html_content
+            )
+
+            success = success_old or success_new
+
+            await self._log_notification(
+                db=db,
+                user_id=user.id,
+                notification_type='email_changed_alert',
+                subject=f"Account email changed from {old_email} to {new_email}",
+                status='sent' if success else 'failed',
+                error_message=None if success else 'Failed to send to both addresses'
+            )
+
+            if success:
+                logger.info(
+                    f"Email change alert sent for user {user.id}: old={success_old}, new={success_new}"
+                )
+            else:
+                logger.error(f"Failed to send email change alert to user {user.id}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error sending email changed alert: {str(e)}", exc_info=True)
+            await self._log_notification(
+                db=db,
+                user_id=user.id,
+                notification_type='email_changed_alert',
+                subject='Email Changed Alert',
+                status='failed',
+                error_message=str(e)
+            )
+            return False
+
+    async def send_failed_login_attempts_alert(
+        self,
+        db: AsyncSession,
+        user: User,
+        attempt_details: Dict
+    ) -> bool:
+        """
+        Notify a user when there have been multiple failed login attempts ON THEIR account.
+
+        This is different from `brute_force_alert` (which goes to admins for IP-wide attacks).
+        Here, the legitimate user is warned that someone is trying to break into THEIR account.
+
+        Args:
+            db: Database session
+            user: User object (the target of the failed attempts)
+            attempt_details: Dict with info (failed_count, ip_address, location, last_attempt_at, threshold)
+        """
+        try:
+            preferences = await self.get_or_create_preferences(db, user.id)
+            if not preferences.email_notifications_enabled:
+                logger.info(f"Email notifications disabled for user {user.id}")
+                return False
+
+            recipient_email = preferences.notification_email or user.email
+
+            template_data = {
+                'username': user.username,
+                'failed_count': attempt_details.get('failed_count', 0),
+                'threshold': attempt_details.get('threshold', 3),
+                'ip_address': attempt_details.get('ip_address', 'Unknown'),
+                'location': attempt_details.get('location', 'Unknown Location'),
+                'last_attempt_at': attempt_details.get(
+                    'last_attempt_at',
+                    datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                ),
+                'secure_url': f"{self.frontend_url}/settings?action=secure"
+            }
+
+            template = jinja_env.get_template('failed_login_attempts_alert.html')
+            html_content = template.render(**template_data)
+
+            subject = f"🚨 {template_data['failed_count']} failed login attempts on your PhishGuard account"
+            success = await email_service.send_email(
+                to_email=recipient_email,
+                subject=subject,
+                html_content=html_content
+            )
+
+            await self._log_notification(
+                db=db,
+                user_id=user.id,
+                notification_type='failed_login_attempts_alert',
+                subject=subject,
+                status='sent' if success else 'failed',
+                error_message=None if success else 'Failed to send email'
+            )
+
+            if success:
+                logger.info(f"Sent failed-login-attempts alert to user {user.id}")
+            else:
+                logger.error(f"Failed to send failed-login-attempts alert to user {user.id}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error sending failed-login-attempts alert: {str(e)}", exc_info=True)
+            await self._log_notification(
+                db=db,
+                user_id=user.id,
+                notification_type='failed_login_attempts_alert',
+                subject='Failed Login Attempts Alert',
+                status='failed',
+                error_message=str(e)
+            )
+            return False
+
     async def send_database_error_alert(
         self,
         error_details: Dict

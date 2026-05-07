@@ -3,10 +3,11 @@ Notifications API Routes
 Handles fetching and managing user notifications
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, desc
+from sqlalchemy import select, update, delete, and_, desc, func
 from datetime import datetime
+from typing import Optional
 import logging
 
 from app.database import get_db
@@ -261,4 +262,50 @@ async def delete_notification(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete notification"
+        )
+
+
+@router.delete("")
+async def clear_notifications(
+    notification_type: Optional[str] = Query(
+        None,
+        description="If provided, only notifications of this type are deleted (e.g. 'new_login_alert'). Omit to clear ALL notifications for the current user."
+    ),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk-delete notifications for the current user.
+
+    Examples:
+        DELETE /api/notifications                                  -> wipes everything
+        DELETE /api/notifications?notification_type=new_login_alert
+                                                                   -> only that type
+    """
+    try:
+        conditions = [NotificationHistory.user_id == current_user.id]
+        if notification_type:
+            conditions.append(NotificationHistory.notification_type == notification_type)
+
+        # Count first so the caller knows what was removed
+        count_result = await db.execute(
+            select(func.count(NotificationHistory.id)).where(and_(*conditions))
+        )
+        deleted = count_result.scalar() or 0
+
+        await db.execute(delete(NotificationHistory).where(and_(*conditions)))
+        await db.commit()
+
+        logger.info(
+            f"User {current_user.username} cleared {deleted} notification(s)"
+            + (f" of type '{notification_type}'" if notification_type else "")
+        )
+        return {"message": "Notifications cleared", "deleted": deleted}
+
+    except Exception as e:
+        logger.error(f"Failed to clear notifications: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to clear notifications"
         )

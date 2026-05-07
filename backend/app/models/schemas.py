@@ -1,16 +1,16 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
 # Request Models
 class EmailAnalysisRequest(BaseModel):
-    """Request model for email analysis"""
-    content: str = Field(..., min_length=1, description="Email content to analyze")
+    """Request model for email/message content analysis"""
+    content: str = Field(..., min_length=1, description="Message content to analyze (plain text)")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "content": "Dear user, Your account has been locked. Click here to verify: http://suspicious-link.com"
+                "content": "URGENT! Your account has been locked. Click here to verify: http://suspicious-link.com"
             }
         }
 
@@ -36,7 +36,8 @@ class AnalysisResponse(BaseModel):
     confidence: float = Field(..., ge=0, le=100, description="Confidence score (0-100)")
     features: List[str] = Field(default_factory=list, description="Detected phishing patterns")
     recommendations: List[str] = Field(default_factory=list, description="Security recommendations")
-    
+    decision_trace: Optional[Dict[str, Any]] = Field(default=None, description="Decision trace: ML verdicts vs final verdict, applied rule, etc.")
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -83,16 +84,16 @@ class HealthResponse(BaseModel):
 
 
 class BulkEmailAnalysisRequest(BaseModel):
-    """Request model for bulk email analysis"""
-    emails: List[str] = Field(..., min_length=1, max_length=50, description="List of email contents to analyze")
+    """Request model for bulk message analysis"""
+    emails: List[str] = Field(..., min_length=1, max_length=50, description="List of message contents to analyze (plain text)")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "emails": [
-                    "Dear user, Your account has been locked...",
-                    "Hello, Your package is ready for delivery...",
-                    "Urgent: Verify your payment information..."
+                    "URGENT! Your account has been locked. Click here now!",
+                    "Hello, Your package is ready for delivery at the post office",
+                    "Congratulations! You've won a prize. Claim it here..."
                 ]
             }
         }

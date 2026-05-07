@@ -6,8 +6,16 @@
 
 .analysis-layout {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* When the URL tab is active, show the live-indicators side panel (2 columns) */
+.analysis-layout.with-side-panel {
+    grid-template-columns: 2fr 1fr;
+    max-width: none;
 }
 
 /* Main Analysis Card */
@@ -409,7 +417,8 @@
 
 /* Responsive */
 @media (max-width: 968px) {
-    .analysis-layout {
+    .analysis-layout,
+    .analysis-layout.with-side-panel {
         grid-template-columns: 1fr;
     }
 

@@ -15,11 +15,7 @@ backend/
 │   └── main.py          # FastAPI application entry point
 ├── ml_models/           # Machine learning model files (.pkl)
 ├── scripts/             # Utility scripts
-│   ├── init_db.py       # Initialize database tables
-│   ├── add_constraint.py # Database migration scripts
-│   └── setup.py         # Setup verification
-├── tests/               # Test files
-│   └── test_url_model.py # URL model performance tests
+│   └── init_db.py       # Initialize database tables
 ├── .env                 # Environment variables (not in git)
 ├── .gitignore           # Git ignore rules
 ├── requirements.txt     # Python dependencies
@@ -83,29 +79,22 @@ Once running, visit:
 # Initialize database tables
 python scripts/init_db.py
 
-# Add database constraints (if needed)
-python scripts/add_constraint.py
-
-# Verify setup
-python scripts/setup.py
-```
-
-### Testing
-```bash
-# Test URL phishing detection model
-python tests/test_url_model.py
+# Train email phishing model
+python scripts/train_email_model.py
 ```
 
 ## Features
 
 - ✅ User authentication (JWT)
-- ✅ Email phishing detection (ML-powered)
+- ✅ Message/text phishing detection (ML-powered, SMS-trained model)
 - ✅ URL phishing detection (100% accuracy)
 - ✅ Gmail OAuth integration
 - ✅ Outlook OAuth integration
-- ✅ Bulk email analysis
+- ✅ Bulk message analysis
 - ✅ Analysis history tracking
 - ✅ User statistics
+
+**Note**: The email/message analysis uses an ML model trained on SMS spam data. It analyzes plain text content and does not require structured email headers (from, subject, etc.). See `scripts/train_email_model.py` for training details.
 
 ## Tech Stack
 
@@ -117,11 +106,6 @@ python tests/test_url_model.py
 - **Email APIs**: Gmail API, Microsoft Graph API
 
 ## Development
-
-### Running Tests
-```bash
-python tests/test_url_model.py
-```
 
 ### Code Structure
 - `app/models/` - Database models and schemas

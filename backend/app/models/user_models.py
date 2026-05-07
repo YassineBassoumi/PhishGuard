@@ -26,7 +26,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
     is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)  # Kept for backward compatibility
+    # is_superuser removed: replaced by `role` field (UserRole.SUPERADMIN)
     is_banned = Column(Boolean, default=False, nullable=False)
     banned_at = Column(DateTime(timezone=True), nullable=True)
     banned_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -49,8 +49,14 @@ class User(Base):
     # Profile picture
     profile_picture = Column(String, nullable=True)  # Stores filename or URL
     
-    # Relationship
+    # Relationships
     analyses = relationship("AnalysisHistory", back_populates="user", cascade="all, delete-orphan")
+    statistics = relationship(
+        "Statistics",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, username={self.username}, role={self.role})>"

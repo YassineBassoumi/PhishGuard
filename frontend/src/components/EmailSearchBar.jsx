@@ -12,13 +12,22 @@ const EmailSearchBar = ({ onSearch, onClear, loading }) => {
         has_attachments: null
     });
 
-    // Debounce search
+    // Debounce search — wait until user stops typing
+    // - 800ms delay (was 500ms — too aggressive)
+    // - Requires at least 3 characters to avoid firing on every keystroke
     useEffect(() => {
+        const trimmed = searchQuery.trim();
+
+        // Don't search for very short queries (1-2 chars produce too much noise)
+        if (trimmed.length > 0 && trimmed.length < 3) {
+            return;
+        }
+
         const timer = setTimeout(() => {
-            if (searchQuery.trim() || hasActiveFilters()) {
+            if (trimmed || hasActiveFilters()) {
                 handleSearch();
             }
-        }, 500);
+        }, 800);
 
         return () => clearTimeout(timer);
     }, [searchQuery]);

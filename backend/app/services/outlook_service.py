@@ -207,6 +207,15 @@ class OutlookService:
             content_type = body.get('contentType', 'text')
             content = body.get('content', '')
             
+            # If content is HTML, convert to plain text
+            if content_type.lower() == 'html':
+                content = self._html_to_text(content)
+            
+            # Debug logging
+            logger.debug(f"Extracted Outlook email content length: {len(content)} chars")
+            logger.debug(f"Content type: {content_type}")
+            logger.debug(f"Content preview: {content[:100]}...")
+            
             full_content = f"From: {sender}\nSubject: {subject}\n\n{content}"
             
             logger.info(f"Retrieved Outlook email content for message ID: {message_id}")
@@ -214,6 +223,39 @@ class OutlookService:
         except Exception as e:
             logger.error(f"Failed to get Outlook email content: {str(e)}", exc_info=True)
             raise
+    
+    def _html_to_text(self, html: str) -> str:
+        """
+        Convert HTML to plain text for analysis
+        Removes HTML tags while preserving text content
+        """
+        import re
+        
+        # Remove script and style elements
+        html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove HTML comments
+        html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+        
+        # Replace <br> and <p> with newlines
+        html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
+        html = re.sub(r'</p>', '\n\n', html, flags=re.IGNORECASE)
+        html = re.sub(r'</div>', '\n', html, flags=re.IGNORECASE)
+        
+        # Remove all remaining HTML tags
+        html = re.sub(r'<[^>]+>', '', html)
+        
+        # Decode HTML entities
+        import html as html_module
+        text = html_module.unescape(html)
+        
+        # Clean up whitespace
+        lines = [line.strip() for line in text.split('\n')]
+        lines = [line for line in lines if line]  # Remove empty lines
+        text = '\n'.join(lines)
+        
+        return text
     
     def search_emails(self, credentials_dict: Dict, filters: Dict, max_results: int = 100) -> List[Dict]:
         """

@@ -24,12 +24,7 @@ def get_model_path(model_filename: str) -> str:
 # Model file names
 EMAIL_MODEL_FILE = 'phishing_model.pkl'
 EMAIL_VECTORIZER_FILE = 'vectorizer.pkl'
-URL_MODEL_FILE = 'url_phishing_model.pkl'
-URL_FEATURES_FILE = 'url_feature_names.pkl'
 
-# Phishing URL model names (in order of preference)
-PHISHING_URL_MODEL_FILES = [
-    'phishing_url_model_final_v3.pkl',  # Latest retrained model
-    'phishing_model_final_v2.pkl',      # Previous version
-    'phishing_url_model.pkl'            # Original name
-]
+# URL classifier: RandomForest trained on 822K URLs (94.6% accuracy)
+# Pickle contains: {'model': rf, 'label_encoder': le, 'features': [...]}
+URL_CLASSIFIER_FILE = 'url_classifier.pkl'

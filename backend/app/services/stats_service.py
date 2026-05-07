@@ -24,7 +24,7 @@ class StatsService:
         recommendations: List[str],
         user_id: int = None
     ) -> AnalysisHistory:
-        """Save analysis to history"""
+        """Save analysis to history and update aggregate counters."""
         analysis = AnalysisHistory(
             user_id=user_id,
             analysis_type=analysis_type,
@@ -36,86 +36,112 @@ class StatsService:
         )
         db.add(analysis)
         await db.flush()
-        
-        # Update statistics
-        await StatsService._update_statistics(db, analysis_type, threat_level)
-        
+
+        # Maintain BOTH aggregate rows: the global singleton (user_id IS NULL)
+        # and the per-user row (when user_id is provided).
+        await StatsService._update_statistics(db, analysis_type, threat_level, user_id)
+
         return analysis
-    
+
     @staticmethod
-    async def _update_statistics(db: AsyncSession, analysis_type: str, threat_level: str):
-        """Update platform statistics"""
-        # Get or create statistics record
-        result = await db.execute(select(Statistics).limit(1))
+    async def _get_or_create_stats_row(db: AsyncSession, target_user_id) -> Statistics:
+        """Fetch the Statistics row for a given scope, creating it on first use.
+
+        target_user_id = None  -> the global singleton row.
+        target_user_id = <int> -> the per-user aggregate row.
+        """
+        if target_user_id is None:
+            stmt = select(Statistics).where(Statistics.user_id.is_(None))
+        else:
+            stmt = select(Statistics).where(Statistics.user_id == target_user_id)
+
+        result = await db.execute(stmt)
         stats = result.scalar_one_or_none()
-        
-        if not stats:
+
+        if stats is None:
             stats = Statistics(
+                user_id=target_user_id,
                 total_analyses=0,
                 threats_detected=0,
                 emails_analyzed=0,
-                urls_analyzed=0
+                urls_analyzed=0,
             )
             db.add(stats)
-        
-        # Update counts
-        stats.total_analyses += 1
-        
-        if analysis_type == "email":
-            stats.emails_analyzed += 1
-        else:
-            stats.urls_analyzed += 1
-        
-        if threat_level in ["suspicious", "dangerous"]:
-            stats.threats_detected += 1
-        
-        stats.last_updated = datetime.utcnow()
-    
+            await db.flush()
+
+        return stats
+
+    @staticmethod
+    async def _update_statistics(
+        db: AsyncSession,
+        analysis_type: str,
+        threat_level: str,
+        user_id: int = None,
+    ):
+        """Increment counters on the global row and (optionally) the per-user row."""
+        # Always update the global singleton (user_id IS NULL)
+        targets = [None]
+        # Also update the per-user row when authenticated
+        if user_id is not None:
+            targets.append(user_id)
+
+        for target_user_id in targets:
+            stats = await StatsService._get_or_create_stats_row(db, target_user_id)
+            stats.total_analyses += 1
+            if analysis_type == "email":
+                stats.emails_analyzed += 1
+            else:
+                stats.urls_analyzed += 1
+            if threat_level in ["suspicious", "dangerous"]:
+                stats.threats_detected += 1
+            # `last_updated` is automatically refreshed by PostgreSQL via
+            # `onupdate=func.now()` declared on the column, no manual write needed.
+
     @staticmethod
     async def get_statistics(db: AsyncSession, user_id: int = None) -> Dict:
-        """Get statistics for a specific user or platform-wide"""
+        """Get statistics for a specific user or platform-wide.
+
+        O(1) lookup: reads directly from the materialised Statistics row
+        (per-user when user_id is provided, global singleton otherwise).
+        Falls back to a live COUNT(*) on analysis_history if the
+        materialised row is missing (defensive, e.g. legacy data before
+        migration).
+        """
         if user_id:
-            # Get user-specific statistics
-            # Count total analyses for this user
-            total_result = await db.execute(
-                select(func.count(AnalysisHistory.id))
-                .where(AnalysisHistory.user_id == user_id)
-            )
-            total_analyses = total_result.scalar() or 0
-            
-            # Count threats detected for this user
-            threats_result = await db.execute(
-                select(func.count(AnalysisHistory.id))
-                .where(AnalysisHistory.user_id == user_id)
-                .where(AnalysisHistory.threat_level.in_(["suspicious", "dangerous"]))
-            )
-            threats_detected = threats_result.scalar() or 0
-            
-            return {
-                "totalAnalyses": total_analyses,
-                "accuracy": 99.2,  # This would be calculated from actual data
-                "averageResponseTime": "<2s",
-                "threatsDetected": threats_detected
-            }
+            stmt = select(Statistics).where(Statistics.user_id == user_id)
         else:
-            # Get platform-wide statistics
-            result = await db.execute(select(Statistics).limit(1))
-            stats = result.scalar_one_or_none()
-            
-            if not stats:
-                return {
-                    "totalAnalyses": 0,
-                    "accuracy": 99.2,
-                    "averageResponseTime": "<2s",
-                    "threatsDetected": 0
-                }
-            
+            stmt = select(Statistics).where(Statistics.user_id.is_(None))
+
+        result = await db.execute(stmt)
+        stats = result.scalar_one_or_none()
+
+        if stats is not None:
             return {
                 "totalAnalyses": stats.total_analyses,
-                "accuracy": 99.2,  # This would be calculated from actual data
+                "accuracy": 99.2,
                 "averageResponseTime": "<2s",
-                "threatsDetected": stats.threats_detected
+                "threatsDetected": stats.threats_detected,
             }
+
+        # Fallback: compute live from analysis_history (slower, used only
+        # when the aggregate row hasn't been materialised yet).
+        total_query = select(func.count(AnalysisHistory.id))
+        threats_query = select(func.count(AnalysisHistory.id)).where(
+            AnalysisHistory.threat_level.in_(["suspicious", "dangerous"])
+        )
+        if user_id:
+            total_query = total_query.where(AnalysisHistory.user_id == user_id)
+            threats_query = threats_query.where(AnalysisHistory.user_id == user_id)
+
+        total_analyses = (await db.execute(total_query)).scalar() or 0
+        threats_detected = (await db.execute(threats_query)).scalar() or 0
+
+        return {
+            "totalAnalyses": total_analyses,
+            "accuracy": 99.2,
+            "averageResponseTime": "<2s",
+            "threatsDetected": threats_detected,
+        }
     
     @staticmethod
     async def get_recent_analyses(

@@ -35,29 +35,29 @@ const AccountSecured = () => {
         </div>
 
         {/* Main Message */}
-        <h1 className="secured-title">Account Secured Successfully!</h1>
+        <h1 className="secured-title">Compte sécurisé avec succès !</h1>
         <p className="secured-subtitle">
-          Your PhishGuard account has been protected
+          Votre compte PhishGuard est maintenant protégé
         </p>
 
         {/* Actions Taken */}
         <div className="actions-box">
           <h3 className="actions-title">
             <Lock size={18} />
-            Security Actions Completed
+            Actions de sécurité effectuées
           </h3>
           <ul className="actions-list">
             <li>
               <CheckCircle size={16} className="check-small" />
-              All active sessions have been terminated
+              Toutes les sessions actives ont été fermées
             </li>
             <li>
               <CheckCircle size={16} className="check-small" />
-              Password reset token generated
+              Un jeton de réinitialisation de mot de passe a été généré
             </li>
             <li>
               <CheckCircle size={16} className="check-small" />
-              Security alert sent to your email
+              Une alerte de sécurité a été envoyée à votre adresse email
             </li>
           </ul>
         </div>
@@ -66,38 +66,38 @@ const AccountSecured = () => {
         <div className="next-steps-box">
           <h3 className="next-steps-title">
             <Mail size={18} />
-            Next Steps
+            Prochaines étapes
           </h3>
           <p className="next-steps-text">
-            We've sent a password reset link to your email address. 
-            Please check your inbox and follow the instructions to set a new password.
+            Nous vous avons envoyé un lien de réinitialisation de mot de passe par email.
+            Consultez votre boîte de réception et suivez les instructions pour définir un nouveau mot de passe.
           </p>
           <div className="email-reminder">
             <AlertTriangle size={16} />
-            <span>Check your spam folder if you don't see the email</span>
+            <span>Pensez à vérifier votre dossier spam si vous ne voyez pas l’email</span>
           </div>
         </div>
 
         {/* Security Tips */}
         <div className="tips-box">
-          <h4 className="tips-title">🔒 Security Recommendations</h4>
+          <h4 className="tips-title">🔒 Recommandations de sécurité</h4>
           <ul className="tips-list">
-            <li>Choose a strong, unique password (12+ characters)</li>
-            <li>Enable Two-Factor Authentication (2FA)</li>
-            <li>Never share your password with anyone</li>
+            <li>Choisissez un mot de passe fort et unique (12 caractères ou plus)</li>
+            <li>Activez l’authentification à deux facteurs (2FA)</li>
+            <li>Ne partagez jamais votre mot de passe avec qui que ce soit</li>
           </ul>
         </div>
 
         {/* Redirect Notice */}
         <div className="redirect-notice">
           <p>
-            Redirecting to login page in <strong>{countdown}</strong> seconds...
+            Redirection vers la page de connexion dans <strong>{countdown}</strong> seconde{countdown > 1 ? 's' : ''}...
           </p>
           <button 
             onClick={() => navigate('/login')} 
             className="login-button"
           >
-            Go to Login Now
+            Aller à la connexion maintenant
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bell, X, Check, AlertTriangle, Shield, Mail, Lock, Info } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Bell, X, Check, AlertTriangle, Shield, Mail, Lock, Info, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import './NotificationCenter.css';
 
@@ -24,7 +24,7 @@ const NotificationCenter = () => {
   }, []);
 
   // Fetch notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!token) return;
 
     try {
@@ -45,16 +45,16 @@ const NotificationCenter = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  // Poll for new notifications every 30 seconds
+  // Poll for new notifications every 60 seconds (increased from 30 to reduce server load)
   useEffect(() => {
     if (token) {
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 30000);
+      const interval = setInterval(fetchNotifications, 60000); // 60 seconds
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, fetchNotifications]);
 
   // Mark notification as read
   const markAsRead = async (notificationId) => {
@@ -93,6 +93,25 @@ const NotificationCenter = () => {
       }
     } catch (error) {
       console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  // Delete all notifications for the current user
+  const clearAll = async () => {
+    if (!window.confirm('Supprimer toutes les notifications ? Cette action est irréversible.')) {
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
     }
   };
 
@@ -147,15 +166,27 @@ const NotificationCenter = () => {
           {/* Header */}
           <div className="notification-header">
             <h3>Notifications</h3>
-            {unreadCount > 0 && (
-              <button 
-                className="mark-all-read"
-                onClick={markAllAsRead}
-              >
-                <Check size={16} />
-                Mark all read
-              </button>
-            )}
+            <div className="notification-header-actions">
+              {unreadCount > 0 && (
+                <button
+                  className="mark-all-read"
+                  onClick={markAllAsRead}
+                >
+                  <Check size={16} />
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  className="clear-all"
+                  onClick={clearAll}
+                  title="Supprimer toutes les notifications"
+                >
+                  <Trash2 size={16} />
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notifications List */}

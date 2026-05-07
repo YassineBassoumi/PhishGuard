@@ -30,10 +30,10 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Set to True for SQL query logging
     future=True,
-    pool_size=10,  # Reduced pool size
-    max_overflow=5,  # Allow some overflow
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_size=5,  # Reduced pool size for better management
+    max_overflow=10,  # Allow more overflow connections
+    pool_pre_ping=True,  # Verify connections before using them (CRITICAL for detecting stale connections)
+    pool_recycle=1800,  # Recycle connections after 30 minutes (reduced from 1 hour)
     pool_timeout=30,  # Timeout for getting connection from pool
     connect_args={
         "ssl": ssl_context,  # Use SSL context for Supabase
@@ -41,8 +41,9 @@ engine = create_async_engine(
             "application_name": "phishguard_app",
             "jit": "off"
         },
-        "command_timeout": 60,
+        "command_timeout": 120,  # Increased from 60 to 120 seconds
         "statement_cache_size": 0,  # Disable prepared statements for pgbouncer compatibility
+        "timeout": 20,  # Increased connection timeout from 10 to 20 seconds
     }
 )
 
@@ -58,16 +59,26 @@ Base = declarative_base()
 
 
 async def get_db():
-    """Dependency for getting database session"""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception as e:
+    """Dependency for getting database session with connection error handling"""
+    session = None
+    try:
+        session = AsyncSessionLocal()
+        yield session
+        await session.commit()
+    except Exception as e:
+        if session:
             await session.rollback()
-            raise
-        finally:
-            await session.close()
+        raise
+    finally:
+        if session:
+            try:
+                await session.close()
+            except Exception as close_error:
+                # Log but don't raise - session might already be closed
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Error closing database session: {close_error}"
+                )
 
 
 async def init_db():

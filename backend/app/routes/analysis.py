@@ -20,7 +20,6 @@ from app.services.stats_service import stats_service
 from app.database import get_db
 from app.services.auth_service import get_current_active_user
 from app.models.user_models import User
-from app.services.notification_service import notification_service
 from datetime import datetime
 import logging
 import asyncio
@@ -36,19 +35,27 @@ async def analyze_email(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Analyze email content for phishing patterns
+    Analyze message/text content for phishing patterns using HYBRID approach
     
-    - **content**: The email content to analyze
+    - **content**: The message content to analyze (plain text, no structured email headers required)
     
     Returns threat level, confidence score, detected features, and recommendations
+    
+    **NEW: Now uses hybrid analysis by default!**
+    - Automatically extracts URLs from content
+    - Analyzes text separately using email phishing model (LinearSVC, 97.5% accuracy)
+    - Analyzes each URL using URL phishing model
+    - Combines results intelligently for better accuracy
+    
+    Note: If no URLs are found, uses standard text analysis (no performance overhead)
     
     Requires authentication
     """
     try:
-        logger.info(f"User {current_user.username} analyzing email content (length: {len(request.content)})")
+        logger.info(f"User {current_user.username} analyzing email content with hybrid approach (length: {len(request.content)})")
         
-        # Analyze email using detection service
-        threat_level, confidence, features, recommendations = detector.analyze_email(
+        # Use hybrid analysis by default for better detection
+        threat_level, confidence, features, recommendations, url_results, decision_trace = detector.analyze_email_hybrid(
             request.content
         )
         
@@ -67,48 +74,12 @@ async def analyze_email(
             user_id=current_user.id
         )
         
-        # Send dangerous email alert if threat is high
-        if threat_level == "dangerous" and confidence >= 70:
-            try:
-                from app.database import get_db as get_notification_db
-                
-                # Extract user data before background task
-                user_id = current_user.id
-                
-                async def send_dangerous_email_notification_background():
-                    """Background task to send notification with its own DB session"""
-                    async for notification_db in get_notification_db():
-                        try:
-                            # Fetch fresh user object in this session
-                            from sqlalchemy import select
-                            from app.models.user_models import User
-                            result = await notification_db.execute(
-                                select(User).where(User.id == user_id)
-                            )
-                            fresh_user = result.scalar_one()
-                            
-                            await notification_service.send_dangerous_email_alert(
-                                db=notification_db,
-                                user=fresh_user,
-                                email_details={
-                                    'from': 'Unknown Sender',  # Extract from content if possible
-                                    'subject': content_preview[:50],
-                                    'date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
-                                    'threat_level': threat_level.upper(),
-                                    'confidence': confidence,
-                                    'red_flags': features[:5]  # Top 5 features
-                                }
-                            )
-                        finally:
-                            await notification_db.close()
-                        break
-                
-                asyncio.create_task(send_dangerous_email_notification_background())
-                logger.info(f"Dangerous email alert queued for user {current_user.username}")
-            except Exception as e:
-                logger.error(f"Failed to queue dangerous email alert: {str(e)}")
-        
-        logger.info(f"Email analysis complete: {threat_level} (confidence: {confidence}%)")
+        # Note: dangerous-email notifications for manual analyses are intentionally disabled.
+        # Manual analyses already display the verdict directly in the UI; pushing them to
+        # the notifications panel was creating duplicate noise. Background Gmail scanning
+        # still creates its own notifications via its own service.
+
+        logger.info(f"Hybrid email analysis complete: {threat_level} (confidence: {confidence}%)")
         
         return AnalysisResponse(
             type="email",
@@ -116,7 +87,8 @@ async def analyze_email(
             threatLevel=threat_level,
             confidence=confidence,
             features=features,
-            recommendations=recommendations
+            recommendations=recommendations,
+            decision_trace=decision_trace
         )
     
     except Exception as e:
@@ -172,6 +144,79 @@ async def analyze_url(
     
     except Exception as e:
         logger.error(f"URL analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@router.post("/analyze-email-hybrid", tags=["Analysis"])
+async def analyze_email_hybrid(
+    request: EmailAnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Analyze email using HYBRID approach (Text + URL split analysis)
+    
+    This endpoint provides better detection by:
+    1. Extracting URLs from email content
+    2. Analyzing text (without URLs) using email phishing model (LinearSVC, 97.5% accuracy)
+    3. Analyzing each URL separately using URL phishing model
+    4. Combining results intelligently
+    
+    - **content**: The email content to analyze
+    
+    Returns threat level, confidence score, detected features, recommendations,
+    and detailed URL analysis results
+    
+    Requires authentication
+    """
+    try:
+        logger.info(f"User {current_user.username} analyzing email with hybrid approach (length: {len(request.content)})")
+        
+        # Analyze email using hybrid detection service
+        threat_level, confidence, features, recommendations, url_results, _trace = detector.analyze_email_hybrid(
+            request.content
+        )
+        
+        # Create content preview (first 100 chars)
+        content_preview = request.content[:100] + "..." if len(request.content) > 100 else request.content
+        
+        # Save to database with user_id
+        await stats_service.save_analysis(
+            db=db,
+            analysis_type="email",
+            content_preview=content_preview,
+            threat_level=threat_level,
+            confidence=confidence,
+            features=features,
+            recommendations=recommendations,
+            user_id=current_user.id
+        )
+        
+        # Note: dangerous-email notifications for manual analyses are intentionally disabled.
+        # Manual analyses already display the verdict directly in the UI; pushing them to
+        # the notifications panel was creating duplicate noise. Background Gmail scanning
+        # still creates its own notifications via its own service.
+
+        logger.info(f"Hybrid email analysis complete: {threat_level} (confidence: {confidence}%)")
+        
+        # Build response with URL details
+        response_data = {
+            "type": "email",
+            "content": content_preview,
+            "threatLevel": threat_level,
+            "confidence": confidence,
+            "features": features,
+            "recommendations": recommendations
+        }
+        
+        # Add URL analysis results if available
+        if url_results:
+            response_data["urlAnalysis"] = url_results
+        
+        return response_data
+    
+    except Exception as e:
+        logger.error(f"Hybrid email analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
@@ -300,11 +345,23 @@ async def analyze_bulk_emails(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Analyze multiple emails in bulk
+    Analyze multiple messages in bulk using HYBRID approach (Text + URL split analysis)
     
-    - **emails**: List of email contents (max 50)
+    - **emails**: List of message contents (max 50, plain text)
     
-    Returns analysis results for each email plus summary statistics
+    Returns analysis results for each message plus summary statistics
+    
+    **NEW: Now uses hybrid analysis by default!**
+    - Automatically extracts URLs from each message
+    - Analyzes text separately using email phishing model (LinearSVC, 97.5% accuracy)
+    - Analyzes each URL using URL phishing model
+    - Combines results intelligently for better accuracy
+    
+    This endpoint provides better detection by:
+    1. Extracting URLs from email content
+    2. Analyzing text (without URLs) using email phishing model (LinearSVC, 97.5% accuracy)
+    
+    Note: Works with plain text content, not structured email headers
     
     Requires authentication
     """
@@ -312,17 +369,17 @@ async def analyze_bulk_emails(
     
     try:
         start_time = time.time()
-        logger.info(f"User {current_user.username} starting bulk analysis of {len(request.emails)} emails")
+        logger.info(f"User {current_user.username} starting bulk hybrid analysis of {len(request.emails)} emails")
         
         results = []
         threat_counts = {"safe": 0, "suspicious": 0, "dangerous": 0}
         total_confidence = 0
         
-        # Analyze each email
+        # Analyze each email using hybrid approach
         for index, email_content in enumerate(request.emails):
             try:
-                # Analyze email
-                threat_level, confidence, features, recommendations = detector.analyze_email(
+                # Analyze email using hybrid detection (text + URL split)
+                threat_level, confidence, features, recommendations, url_results, _trace = detector.analyze_email_hybrid(
                     email_content
                 )
                 
@@ -400,97 +457,116 @@ async def analyze_progressive(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Progressive URL analysis with step-by-step indicators
+    Progressive URL analysis with step-by-step indicators.
     
-    Returns individual check results for real-time display
+    Uses the same extract_url_features() as the ML model so the
+    live indicators match exactly what the model sees.
     
     Requires authentication
     """
-    from urllib.parse import urlparse
-    import re
+    from app.services.detection.feature_extractors import extract_url_features
     
     try:
         url = request.url
         logger.info(f"User {current_user.username} starting progressive analysis: {url}")
         
+        # Extract features using the SAME function the ML model uses (23 features)
+        fd = extract_url_features(url)
+        
         indicators = {}
         
-        # 1. HTTPS Check
-        has_https = url.lower().startswith('https://')
+        # 1. HTTPS Check (model feature: is_https)
+        has_https = fd.get('is_https', 0) == 1
         indicators['https'] = {
             'status': 'safe' if has_https else 'warning',
             'label': 'Vérification SSL',
-            'message': 'HTTPS détecté' if has_https else 'HTTPS manquant',
+            'message': 'HTTPS détecté — connexion sécurisée' if has_https else 'HTTPS manquant — données non chiffrées',
             'passed': has_https
         }
         
-        # 2. Domain Analysis
-        try:
-            parsed = urlparse(url)
-            domain = parsed.netloc
-            
-            # Check if IP address
-            is_ip = bool(re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', domain))
-            
-            # Check subdomain count
-            subdomain_count = len(domain.split('.')) - 2 if len(domain.split('.')) > 2 else 0
-            
-            domain_safe = not is_ip and subdomain_count <= 2
-            
-            if is_ip:
-                domain_msg = 'Utilise une adresse IP'
-            elif subdomain_count > 2:
-                domain_msg = f'{subdomain_count} sous-domaines détectés'
-            else:
-                domain_msg = 'Structure de domaine normale'
-            
+        # 2. Domain Analysis (model features: use_of_ip, subdomain_count, hostname_length,
+        #    domain_entropy, tld_risk)
+        domain_issues = []
+        if fd.get('use_of_ip', 0) == 1:
+            domain_issues.append('Utilise une adresse IP')
+        if fd.get('subdomain_count', 0) > 3:
+            domain_issues.append(f"{fd['subdomain_count']} sous-domaines")
+        if fd.get('hostname_length', 0) > 30:
+            domain_issues.append('Nom d\'hôte très long')
+        if fd.get('domain_entropy', 0) > 4.0:
+            domain_issues.append('Domaine aléatoire suspect')
+        if fd.get('tld_risk', 0) == 1:
+            domain_issues.append('TLD à risque')
+        
+        if domain_issues:
             indicators['domain'] = {
-                'status': 'safe' if domain_safe else 'danger',
+                'status': 'danger' if len(domain_issues) >= 2 else 'warning',
                 'label': 'Analyse du Domaine',
-                'message': domain_msg,
-                'passed': domain_safe
-            }
-        except:
-            indicators['domain'] = {
-                'status': 'danger',
-                'label': 'Analyse du Domaine',
-                'message': 'Domaine invalide',
+                'message': ' · '.join(domain_issues),
                 'passed': False
             }
-        
-        # 3. Phishing Keywords Check
-        phishing_keywords = ['login', 'signin', 'account', 'verify', 'secure', 'update', 
-                            'confirm', 'banking', 'paypal', 'password']
-        found_keywords = [kw for kw in phishing_keywords if kw in url.lower()]
-        
-        keywords_safe = len(found_keywords) == 0
-        
-        indicators['keywords'] = {
-            'status': 'safe' if keywords_safe else 'warning' if len(found_keywords) <= 1 else 'danger',
-            'label': 'Mots-clés Suspects',
-            'message': 'Aucun mot-clé suspect' if keywords_safe else f'{len(found_keywords)} mot(s)-clé(s) trouvé(s)',
-            'passed': keywords_safe
-        }
-        
-        # 4. URL Structure Check
-        url_length = len(url)
-        suspicious_chars = url.count('@') + url.count('//') - 1  # -1 for protocol //
-        
-        structure_safe = url_length < 100 and suspicious_chars == 0
-        
-        if url_length >= 100:
-            structure_msg = 'URL anormalement longue'
-        elif suspicious_chars > 0:
-            structure_msg = 'Caractères suspects détectés'
         else:
-            structure_msg = 'Structure URL normale'
+            indicators['domain'] = {
+                'status': 'safe',
+                'label': 'Analyse du Domaine',
+                'message': 'Structure de domaine normale',
+                'passed': True
+            }
         
-        indicators['structure'] = {
-            'status': 'safe' if structure_safe else 'warning',
-            'label': 'Structure URL',
-            'message': structure_msg,
-            'passed': structure_safe
-        }
+        # 3. Phishing Keywords Check (model features: sus_url, short_url)
+        kw_issues = []
+        if fd.get('sus_url', 0) == 1:
+            kw_issues.append('Mots-clés de phishing détectés')
+        if fd.get('short_url', 0) == 1:
+            kw_issues.append('Raccourcisseur d\'URL')
+        
+        if kw_issues:
+            indicators['keywords'] = {
+                'status': 'danger' if len(kw_issues) == 2 else 'warning',
+                'label': 'Mots-clés Suspects',
+                'message': ' · '.join(kw_issues),
+                'passed': False
+            }
+        else:
+            indicators['keywords'] = {
+                'status': 'safe',
+                'label': 'Mots-clés Suspects',
+                'message': 'Aucun mot-clé suspect détecté',
+                'passed': True
+            }
+        
+        # 4. URL Structure Check (model features: url_length, count@, count_embed_domian,
+        #    path_length, count_dir, special_char_ratio, count-, count-digits)
+        struct_issues = []
+        if fd.get('url_length', 0) > 100:
+            struct_issues.append(f"URL longue ({fd['url_length']} car.)")
+        if fd.get('count@', 0) > 0:
+            struct_issues.append('Symbole @ détecté')
+        if fd.get('count_embed_domian', 0) > 0:
+            struct_issues.append('Double slash dans le chemin')
+        if fd.get('path_length', 0) > 80:
+            struct_issues.append('Chemin très long')
+        if fd.get('count-', 0) > 3:
+            struct_issues.append(f"{fd['count-']} tirets")
+        if fd.get('special_char_ratio', 0) > 0.35:
+            struct_issues.append('Ratio élevé de caractères spéciaux')
+        if fd.get('count_dir', 0) > 5:
+            struct_issues.append(f"{fd['count_dir']} niveaux de répertoires")
+        
+        if struct_issues:
+            indicators['structure'] = {
+                'status': 'danger' if len(struct_issues) >= 2 else 'warning',
+                'label': 'Structure URL',
+                'message': ' · '.join(struct_issues),
+                'passed': False
+            }
+        else:
+            indicators['structure'] = {
+                'status': 'safe',
+                'label': 'Structure URL',
+                'message': 'Structure URL normale',
+                'passed': True
+            }
         
         # Now run full ML analysis
         threat_level, confidence, features, recommendations = detector.analyze_url(url)
@@ -514,4 +590,161 @@ async def analyze_progressive(
         
     except Exception as e:
         logger.error(f"Progressive analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+
+@router.post("/analyze-email-progressive", tags=["Analysis"])
+async def analyze_email_progressive(
+    request: EmailAnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Progressive message analysis with step-by-step indicators
+    
+    Returns individual check results for real-time display using ML model
+    
+    Note: Analyzes plain text content (email body, messages) without requiring structured headers
+    
+    Requires authentication
+    """
+    import re
+    
+    try:
+        content = request.content
+        logger.info(f"User {current_user.username} starting progressive email analysis")
+        
+        indicators = {}
+        content_lower = content.lower()
+        
+        # Now run full HYBRID analysis (text + URL models) to match the final analysis
+        threat_level, confidence, features, recommendations, _url_results, _trace = detector.analyze_email_hybrid(content)
+        
+        # Adjust indicator statuses based on ML model's verdict
+        # If ML says "safe", don't show danger indicators even if keywords are found
+        ml_is_safe = threat_level in ['safe', 'low']
+        ml_is_suspicious = threat_level == 'suspicious'
+        ml_is_dangerous = threat_level in ['dangerous', 'high']
+        
+        # 1. Phishing Keywords Check (aligned with ML verdict)
+        phishing_keywords = ['verify', 'urgent', 'suspended', 'locked', 'confirm', 
+                            'click here', 'account', 'password', 'update', 'expire',
+                            'winner', 'congratulations', 'claim', 'prize', 'free']
+        found_keywords = [kw for kw in phishing_keywords if kw in content_lower]
+        
+        # If ML says safe, show safe even if keywords found (they're in legitimate context)
+        if ml_is_safe:
+            keywords_status = 'safe'
+            keywords_msg = 'Contexte légitime détecté' if len(found_keywords) > 0 else 'Aucun mot-clé suspect'
+        elif ml_is_suspicious:
+            keywords_status = 'warning'
+            keywords_msg = f'{len(found_keywords)} mot(s)-clé(s) dans contexte suspect'
+        else:  # dangerous
+            keywords_status = 'danger'
+            keywords_msg = f'{len(found_keywords)} mot(s)-clé(s) de phishing détecté(s)'
+        
+        indicators['phishingKeywords'] = {
+            'status': keywords_status,
+            'label': 'Mots-clés de Phishing',
+            'message': keywords_msg,
+            'passed': ml_is_safe
+        }
+        
+        # 2. Urgency Language Check (aligned with ML verdict)
+        urgency_words = ['urgent', 'immediate', 'immediately', 'act now', 'expire', 
+                        'expires', 'suspended', 'limited time', 'hurry', 'quick']
+        found_urgency = [word for word in urgency_words if word in content_lower]
+        
+        if ml_is_safe:
+            urgency_status = 'safe'
+            urgency_msg = 'Langage approprié au contexte' if len(found_urgency) > 0 else 'Pas de langage urgent'
+        elif ml_is_suspicious:
+            urgency_status = 'warning'
+            urgency_msg = f'{len(found_urgency)} expression(s) urgente(s)'
+        else:
+            urgency_status = 'danger'
+            urgency_msg = f'Langage urgent manipulateur détecté'
+        
+        indicators['urgencyLanguage'] = {
+            'status': urgency_status,
+            'label': 'Langage Urgent',
+            'message': urgency_msg,
+            'passed': ml_is_safe
+        }
+        
+        # 3. Suspicious Links Check (aligned with ML verdict)
+        url_pattern = r'https?://[^\s<>"\']+'
+        urls = re.findall(url_pattern, content)
+        
+        suspicious_url_count = 0
+        for url in urls:
+            if any(keyword in url.lower() for keyword in ['login', 'verify', 'account', 'secure', 'update']):
+                suspicious_url_count += 1
+        
+        if len(urls) == 0:
+            links_status = 'safe'
+            links_msg = 'Aucun lien détecté'
+        elif ml_is_safe:
+            links_status = 'safe'
+            links_msg = f'{len(urls)} lien(s) légitime(s)'
+        elif ml_is_suspicious:
+            links_status = 'warning'
+            links_msg = f'{len(urls)} lien(s) à vérifier'
+        else:
+            links_status = 'danger'
+            links_msg = f'{suspicious_url_count} lien(s) suspect(s) sur {len(urls)}' if suspicious_url_count > 0 else f'{len(urls)} lien(s) dangereux'
+        
+        indicators['suspiciousLinks'] = {
+            'status': links_status,
+            'label': 'Liens Suspects',
+            'message': links_msg,
+            'passed': ml_is_safe
+        }
+        
+        # 4. Credential Request Check (aligned with ML verdict)
+        credential_words = ['password', 'username', 'login', 'credential', 'ssn', 
+                           'social security', 'credit card', 'bank account', 'pin',
+                           'cvv', 'card number', 'account number']
+        found_credentials = [word for word in credential_words if word in content_lower]
+        
+        if len(found_credentials) == 0:
+            credentials_status = 'safe'
+            credentials_msg = 'Aucune demande suspecte'
+        elif ml_is_safe:
+            credentials_status = 'safe'
+            credentials_msg = 'Mentions légitimes détectées'
+        elif ml_is_suspicious:
+            credentials_status = 'warning'
+            credentials_msg = 'Demande d\'informations à vérifier'
+        else:
+            credentials_status = 'danger'
+            credentials_msg = 'Tentative de vol d\'informations sensibles'
+        
+        indicators['credentialRequest'] = {
+            'status': credentials_status,
+            'label': 'Demande de Données',
+            'message': credentials_msg,
+            'passed': ml_is_safe
+        }
+        
+        # NOTE: Do NOT save to database here - this is just for progressive indicators
+        # The main /analyze-email endpoint will save the final analysis
+        
+        logger.info(f"Progressive email analysis complete: {threat_level} (confidence: {confidence}%)")
+        
+        return {
+            'indicators': indicators,
+            'analysis': {
+                'type': 'email',
+                'content': content[:100] + '...' if len(content) > 100 else content,
+                'threatLevel': threat_level,
+                'confidence': confidence,
+                'features': features,
+                'recommendations': recommendations
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Progressive email analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

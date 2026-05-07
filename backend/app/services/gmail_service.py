@@ -62,13 +62,13 @@ class GmailService:
             )
             
             auth_url, state = flow.authorization_url(
-                access_type='offline',
+                access_type='offline',  # Required for refresh token
                 include_granted_scopes='true',
-                prompt='consent',
+                prompt='consent',  # Force consent screen to get new refresh token
                 state='security_token'
             )
             
-            logger.info("Generated Gmail authorization URL")
+            logger.info("Generated Gmail authorization URL with offline access")
             return auth_url
         except Exception as e:
             logger.error(f"Failed to generate authorization URL: {str(e)}", exc_info=True)
@@ -177,12 +177,19 @@ class GmailService:
             # Extract email content
             content = self._extract_email_body(msg)
             
-            # Add headers for context
+            # Add headers for context - IMPORTANT: These headers are analyzed for phishing!
+            # Including From/Subject helps detect spoofed senders and suspicious subjects
             headers = msg['payload']['headers']
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
             sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
             
+            # Full content includes headers (more accurate phishing detection)
             full_content = f"From: {sender}\nSubject: {subject}\n\n{content}"
+            
+            # Debug logging
+            logger.debug(f"Extracted email content length: {len(content)} chars")
+            logger.debug(f"Full content length (with headers): {len(full_content)} chars")
+            logger.debug(f"Content preview: {content[:100]}...")
             
             logger.info(f"Retrieved email content for message ID: {message_id}")
             return full_content
@@ -192,20 +199,71 @@ class GmailService:
     
     def _extract_email_body(self, message: Dict) -> str:
         """Extract email body from message payload"""
+        body_text = None
+        body_html = None
+        
         if 'parts' in message['payload']:
             parts = message['payload']['parts']
             for part in parts:
                 if part['mimeType'] == 'text/plain':
                     if 'data' in part['body']:
-                        return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                        body_text = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
                 elif part['mimeType'] == 'text/html':
                     if 'data' in part['body']:
-                        return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                        body_html = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
         else:
             if 'body' in message['payload'] and 'data' in message['payload']['body']:
-                return base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
+                mime_type = message['payload'].get('mimeType', '')
+                decoded = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
+                if mime_type == 'text/plain':
+                    body_text = decoded
+                elif mime_type == 'text/html':
+                    body_html = decoded
+                else:
+                    body_text = decoded  # Default to text
         
-        return message.get('snippet', '')
+        # Prefer plain text over HTML
+        if body_text:
+            return body_text
+        elif body_html:
+            # Convert HTML to plain text
+            return self._html_to_text(body_html)
+        else:
+            # Fallback to snippet
+            return message.get('snippet', '')
+    
+    def _html_to_text(self, html: str) -> str:
+        """
+        Convert HTML to plain text for analysis
+        Removes HTML tags while preserving text content
+        """
+        import re
+        
+        # Remove script and style elements
+        html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove HTML comments
+        html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+        
+        # Replace <br> and <p> with newlines
+        html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
+        html = re.sub(r'</p>', '\n\n', html, flags=re.IGNORECASE)
+        html = re.sub(r'</div>', '\n', html, flags=re.IGNORECASE)
+        
+        # Remove all remaining HTML tags
+        html = re.sub(r'<[^>]+>', '', html)
+        
+        # Decode HTML entities
+        import html as html_module
+        text = html_module.unescape(html)
+        
+        # Clean up whitespace
+        lines = [line.strip() for line in text.split('\n')]
+        lines = [line for line in lines if line]  # Remove empty lines
+        text = '\n'.join(lines)
+        
+        return text
     
     def search_emails(self, credentials_dict: Dict, filters: Dict, max_results: int = 100) -> List[Dict]:
         """

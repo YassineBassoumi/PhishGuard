@@ -56,7 +56,6 @@ class UserResponse(UserBase):
     id: int
     role: UserRole
     is_active: bool
-    is_superuser: bool
     is_banned: bool
     banned_at: Optional[datetime] = None
     ban_reason: Optional[str] = None

@@ -6,7 +6,7 @@ Handles user session tracking and management
 from datetime import datetime, timedelta
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from fastapi import Request
 import uuid
 import re
@@ -102,6 +102,42 @@ class SessionService:
         
         return session, jti
     
+    @staticmethod
+    async def is_known_device(
+        db: AsyncSession,
+        user_id: int,
+        ip_address: str,
+        user_agent: str,
+        exclude_jti: Optional[str] = None
+    ) -> bool:
+        """
+        Check whether the (user, ip_address, device_info) combination has been seen
+        before for this user. Used to decide whether a "new login" alert is worth sending.
+
+        Strategy:
+            - We compare on (ip_address, device_info) — device_info is the parsed
+              "Browser on OS" string, which is much more stable than the raw user_agent
+              (the raw UA changes on every minor browser update and would defeat the check).
+            - We exclude the current session's JTI so the freshly-created session does
+              not falsely match itself.
+
+        Returns:
+            True  → device already seen for this user (skip the alert).
+            False → never seen before, treat as a new device (send the alert).
+        """
+        device_info = SessionService.extract_device_info(user_agent)
+
+        query = select(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.ip_address == ip_address,
+            UserSession.device_info == device_info,
+        )
+        if exclude_jti:
+            query = query.where(UserSession.token_jti != exclude_jti)
+
+        result = await db.execute(query.limit(1))
+        return result.scalar_one_or_none() is not None
+
     @staticmethod
     async def get_user_sessions(
         db: AsyncSession,
@@ -208,16 +244,27 @@ class SessionService:
         db: AsyncSession,
         jti: str
     ) -> None:
-        """Update last activity timestamp for a session"""
-        result = await db.execute(
-            select(UserSession)
-            .where(UserSession.token_jti == jti)
-        )
-        session = result.scalar_one_or_none()
+        """
+        Update last activity timestamp for a session
         
-        if session:
-            session.last_activity = datetime.utcnow()
-            await db.flush()
+        Note: Uses a direct UPDATE query instead of ORM for better performance
+        and to avoid timeout issues on slow database connections.
+        """
+        try:
+            # Direct UPDATE query - much faster than loading object and flushing
+            await db.execute(
+                update(UserSession)
+                .where(UserSession.token_jti == jti)
+                .values(last_activity=datetime.utcnow())
+            )
+            # Don't flush here - let the request handler commit at the end
+            # This prevents blocking on every request
+        except Exception as e:
+            # Log but don't fail the request if session update fails
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Failed to update session activity for {jti}: {str(e)}"
+            )
     
     @staticmethod
     async def cleanup_expired_sessions(db: AsyncSession) -> int:

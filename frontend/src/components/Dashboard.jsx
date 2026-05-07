@@ -220,7 +220,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="stat-value-new">{stats?.totalAnalyses || 0}</div>
-                    <div className="stat-label-new">Emails Analysés</div>
+                    <div className="stat-label-new">Emails Et Url Analysés</div>
                     <div className="stat-footer">Total des analyses effectuées</div>
                 </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Check, Trash2, Filter, AlertTriangle, Shield, Lock, Info, Mail } from 'lucide-react';
+import Toast from '../components/Toast';
 import './NotificationsPage.css';
 
 const NotificationsPage = () => {
@@ -9,7 +10,12 @@ const NotificationsPage = () => {
   const [filter, setFilter] = useState('all'); // all, unread, read
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [toast, setToast] = useState(null); // { message, type }
   const { token } = useAuth();
+
+  const showToast = (message, type = 'success') => setToast({ message, type });
+  const closeToast = () => setToast(null);
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -84,9 +90,16 @@ const NotificationsPage = () => {
     }
   };
 
-  // Delete notification
-  const deleteNotification = async (notificationId) => {
-    if (!confirm('Delete this notification?')) return;
+  // Trigger confirm modal
+  const askDeleteNotification = (notificationId) => {
+    setConfirmDeleteId(notificationId);
+  };
+
+  // Delete notification (after confirmation)
+  const confirmDeleteNotification = async () => {
+    const notificationId = confirmDeleteId;
+    setConfirmDeleteId(null);
+    if (!notificationId) return;
 
     try {
       const response = await fetch(`http://localhost:8000/api/notifications/${notificationId}`, {
@@ -98,9 +111,13 @@ const NotificationsPage = () => {
 
       if (response.ok) {
         setNotifications(notifications.filter(n => n.id !== notificationId));
+        showToast('Notification supprimée', 'success');
+      } else {
+        showToast('Échec de la suppression', 'error');
       }
     } catch (error) {
       console.error('Failed to delete notification:', error);
+      showToast('Erreur de connexion au serveur', 'error');
     }
   };
 
@@ -248,7 +265,7 @@ const NotificationsPage = () => {
                   </button>
                 )}
                 <button 
-                  onClick={() => deleteNotification(notification.id)}
+                  onClick={() => askDeleteNotification(notification.id)}
                   className="action-btn delete"
                   title="Supprimer"
                 >
@@ -280,6 +297,55 @@ const NotificationsPage = () => {
           >
             Suivant
           </button>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={closeToast}
+          duration={3500}
+        />
+      )}
+
+      {/* Confirm delete modal */}
+      {confirmDeleteId !== null && (
+        <div
+          className="np-modal-overlay"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="np-modal-content"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="np-modal-icon">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="np-modal-title">Supprimer cette notification ?</h3>
+            <p className="np-modal-message">
+              Cette action est irréversible. La notification sera définitivement supprimée de votre historique.
+            </p>
+            <div className="np-modal-actions">
+              <button
+                type="button"
+                className="np-btn-cancel"
+                onClick={() => setConfirmDeleteId(null)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="np-btn-confirm"
+                onClick={confirmDeleteNotification}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

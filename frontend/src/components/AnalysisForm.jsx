@@ -91,60 +91,31 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
         setIsProgressiveAnalyzing(true);
 
         try {
-            const contentLower = content.toLowerCase();
-            
-            // Check for phishing keywords
-            const phishingKeywords = ['verify', 'urgent', 'suspended', 'locked', 'confirm', 'click here', 'account', 'password', 'update', 'expire'];
-            const foundKeywords = phishingKeywords.filter(kw => contentLower.includes(kw));
-            
-            setEmailIndicators(prev => ({
-                ...prev,
-                phishingKeywords: {
-                    status: foundKeywords.length === 0 ? 'safe' : foundKeywords.length <= 2 ? 'warning' : 'danger',
-                    label: 'Mots-clés de Phishing',
-                    message: foundKeywords.length === 0 ? 'Aucun mot-clé suspect' : `${foundKeywords.length} mot(s)-clé(s) trouvé(s)`
-                }
-            }));
-            
-            // Check for urgency language
-            const urgencyWords = ['urgent', 'immediate', 'act now', 'expire', 'suspended', 'limited time'];
-            const foundUrgency = urgencyWords.filter(word => contentLower.includes(word));
-            
-            setEmailIndicators(prev => ({
-                ...prev,
-                urgencyLanguage: {
-                    status: foundUrgency.length === 0 ? 'safe' : foundUrgency.length === 1 ? 'warning' : 'danger',
-                    label: 'Langage Urgent',
-                    message: foundUrgency.length === 0 ? 'Pas de langage urgent' : `${foundUrgency.length} expression(s) urgente(s)`
-                }
-            }));
-            
-            // Check for suspicious links
-            const urlPattern = /https?:\/\/[^\s]+/gi;
-            const urls = content.match(urlPattern) || [];
-            
-            setEmailIndicators(prev => ({
-                ...prev,
-                suspiciousLinks: {
-                    status: urls.length === 0 ? 'safe' : urls.length <= 2 ? 'warning' : 'danger',
-                    label: 'Liens Suspects',
-                    message: urls.length === 0 ? 'Aucun lien détecté' : `${urls.length} lien(s) trouvé(s)`
-                }
-            }));
-            
-            // Check for credential requests
-            const credentialWords = ['password', 'username', 'login', 'credential', 'ssn', 'social security', 'credit card', 'bank account'];
-            const foundCredentials = credentialWords.filter(word => contentLower.includes(word));
-            
-            setEmailIndicators(prev => ({
-                ...prev,
-                credentialRequest: {
-                    status: foundCredentials.length === 0 ? 'safe' : 'danger',
-                    label: 'Demande de Données',
-                    message: foundCredentials.length === 0 ? 'Aucune demande suspecte' : 'Demande d\'informations sensibles'
-                }
-            }));
-            
+            // Call progressive email analysis endpoint (same as URL analysis)
+            const response = await fetch('http://localhost:8000/api/analyze-email-progressive', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ content: content })
+            });
+
+            if (!response.ok) {
+                throw new Error('Progressive email analysis failed');
+            }
+
+            const data = await response.json();
+
+            // Update email indicators with real backend ML results
+            if (data.indicators) {
+                setEmailIndicators({
+                    phishingKeywords: data.indicators.phishingKeywords || emailIndicators.phishingKeywords,
+                    urgencyLanguage: data.indicators.urgencyLanguage || emailIndicators.urgencyLanguage,
+                    suspiciousLinks: data.indicators.suspiciousLinks || emailIndicators.suspiciousLinks,
+                    credentialRequest: data.indicators.credentialRequest || emailIndicators.credentialRequest
+                });
+            }
         } catch (error) {
             console.error('Email analysis error:', error);
         } finally {
@@ -221,14 +192,12 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
             return;
         }
 
-        // Trigger progressive analysis before full analysis
+        // Run progressive (live indicators) analysis for URL tab only
         if (activeTab === 'url') {
             performProgressiveAnalysis(content);
-        } else {
-            performEmailAnalysis(content);
         }
 
-        // Then trigger full analysis
+        // Trigger full analysis
         onAnalyze(activeTab, content);
     };
 
@@ -293,7 +262,7 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
 
     return (
         <div className="analysis-form-container fade-in-up">
-            <div className="analysis-layout">
+            <div className={`analysis-layout ${activeTab === 'url' ? 'with-side-panel' : ''}`}>
                 {/* Main Analysis Card */}
                 <div className="glass-card analysis-main-card">
                     <div className="analysis-header">
@@ -400,58 +369,52 @@ const AnalysisForm = ({ onAnalyze, isAnalyzing, onSwitchToGmail, token }) => {
                     </div>
                 </div>
 
-                {/* Live Analysis Indicators */}
-                <div className="glass-card analysis-live-card">
-                    <div className="live-header">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M12 2L2 7L12 12L22 7L12 2Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M2 17L12 22L22 17" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M2 12L12 17L22 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        <h3>Analyse IA Live</h3>
-                    </div>
-
-                    <div className="live-indicators">
-                        <p className="indicators-title">INDICATEURS DÉTECTÉS</p>
-                        <p className="indicators-subtitle">TEMPS RÉEL</p>
-
-                        <div className="indicator-list">
-                            {Object.entries(liveIndicators).map(([key, indicator]) => (
-                                <div key={key} className={`indicator-item ${indicator.status} ${getIndicatorClass(indicator.status)}`}>
-                                    <div className="indicator-icon">
-                                        {isProgressiveAnalyzing && indicator.status === 'waiting' 
-                                            ? getIndicatorIcon('analyzing')
-                                            : getIndicatorIcon(indicator.status)
-                                        }
-                                    </div>
-                                    <div className="indicator-content">
-                                        <span className="indicator-label">{indicator.label}</span>
-                                        {indicator.message && (
-                                            <span className="indicator-status">{indicator.message}</span>
-                                        )}
-                                        {!indicator.message && (
-                                            <span className="indicator-status">
-                                                {activeTab === 'url' ? 'En attente de l\'URL...' : 'En attente du contenu...'}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                {activeTab === 'url' && (
+                    <div className="glass-card analysis-live-card">
+                        <div className="live-header">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 2L2 7L12 12L22 7L12 2Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M2 17L12 22L22 17" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M2 12L12 17L22 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <h3>Analyse IA Live</h3>
                         </div>
-
-                        <div className="live-message">
-                            <p>
-                                {activeTab === 'url' 
-                                    ? "L'IA analyse l'URL en temps réel pendant que vous tapez..."
-                                    : "L'IA analyse le contenu de l'email en temps réel..."
-                                }
-                            </p>
-                        </div>
+                        <LiveIndicatorsPanel
+                            indicators={urlIndicators}
+                            isProgressiveAnalyzing={isProgressiveAnalyzing}
+                            getIndicatorClass={getIndicatorClass}
+                            getIndicatorIcon={getIndicatorIcon}
+                            waitingMessage="En attente de l'URL..."
+                            footerMessage="L'IA analyse l'URL en temps réel pendant que vous tapez..."
+                        />
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
 };
+
+const LiveIndicatorsPanel = ({ indicators, isProgressiveAnalyzing, getIndicatorClass, getIndicatorIcon, waitingMessage, footerMessage }) => (
+    <div className="live-indicators">
+        <p className="indicators-title">INDICATEURS DÉTECTÉS</p>
+        <p className="indicators-subtitle">TEMPS RÉEL</p>
+        <div className="indicator-list">
+            {Object.entries(indicators).map(([key, indicator]) => (
+                <div key={key} className={`indicator-item ${indicator.status} ${getIndicatorClass(indicator.status)}`}>
+                    <div className="indicator-icon">
+                        {isProgressiveAnalyzing && indicator.status === 'waiting'
+                            ? getIndicatorIcon('analyzing')
+                            : getIndicatorIcon(indicator.status)}
+                    </div>
+                    <div className="indicator-content">
+                        <span className="indicator-label">{indicator.label}</span>
+                        <span className="indicator-status">{indicator.message || waitingMessage}</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+        <div className="live-message"><p>{footerMessage}</p></div>
+    </div>
+);
 
 export default AnalysisForm;

@@ -182,11 +182,27 @@ class UnifiedEmailService:
                 'count': len(emails)
             }
         except Exception as e:
-            logger.error(f"Failed to fetch emails from {provider}: {str(e)}", exc_info=True)
+            error_str = str(e)
+            logger.error(f"Failed to fetch emails from {provider}: {error_str}", exc_info=True)
+            
+            # Check if it's an invalid_grant error (expired/revoked refresh token)
+            if 'invalid_grant' in error_str.lower() or 'refresh' in error_str.lower():
+                # Mark credentials as invalid and require re-authentication
+                await self._mark_credentials_invalid(db, user_id, provider)
+                return {
+                    'success': False,
+                    'provider': provider.value,
+                    'error': 'REAUTH_REQUIRED',
+                    'error_message': 'Your email connection has expired. Please reconnect your account.',
+                    'requires_reauth': True,
+                    'emails': [],
+                    'count': 0
+                }
+            
             return {
                 'success': False,
                 'provider': provider.value,
-                'error': str(e),
+                'error': error_str,
                 'emails': [],
                 'count': 0
             }
@@ -381,6 +397,34 @@ class UnifiedEmailService:
             logger.error(f"Failed to disconnect provider: {str(e)}", exc_info=True)
             raise
     
+    async def _mark_credentials_invalid(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        provider: EmailProvider
+    ):
+        """
+        Mark credentials as invalid (requires re-authentication)
+        This is called when refresh token is expired/revoked
+        """
+        try:
+            result = await db.execute(
+                select(UserEmailCredential).where(
+                    UserEmailCredential.user_id == user_id,
+                    UserEmailCredential.provider == provider.value
+                )
+            )
+            credential = result.scalar_one_or_none()
+            
+            if credential:
+                # Delete the invalid credentials to force re-authentication
+                await db.delete(credential)
+                await db.commit()
+                logger.info(f"Marked credentials as invalid for user {user_id}, provider {provider}")
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Failed to mark credentials invalid: {str(e)}", exc_info=True)
+    
     async def search_emails(
         self,
         db: AsyncSession,
@@ -433,11 +477,27 @@ class UnifiedEmailService:
                 'search_method': 'native_api'
             }
         except Exception as e:
-            logger.error(f"Failed to search emails from {provider}: {str(e)}", exc_info=True)
+            error_str = str(e)
+            logger.error(f"Failed to search emails from {provider}: {error_str}", exc_info=True)
+            
+            # Check if it's an invalid_grant error (expired/revoked refresh token)
+            if 'invalid_grant' in error_str.lower() or 'refresh' in error_str.lower():
+                # Mark credentials as invalid and require re-authentication
+                await self._mark_credentials_invalid(db, user_id, provider)
+                return {
+                    'success': False,
+                    'provider': provider.value,
+                    'error': 'REAUTH_REQUIRED',
+                    'error_message': 'Your email connection has expired. Please reconnect your account.',
+                    'requires_reauth': True,
+                    'emails': [],
+                    'count': 0
+                }
+            
             return {
                 'success': False,
                 'provider': provider.value,
-                'error': str(e),
+                'error': error_str,
                 'emails': [],
                 'count': 0
             }

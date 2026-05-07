@@ -4,15 +4,14 @@ Handles loading of ML models
 """
 
 import os
+import pickle
 import joblib
 from typing import Optional, Tuple, Any
 from .model_config import (
     get_model_path,
     EMAIL_MODEL_FILE,
     EMAIL_VECTORIZER_FILE,
-    URL_MODEL_FILE,
-    URL_FEATURES_FILE,
-    PHISHING_URL_MODEL_FILES
+    URL_CLASSIFIER_FILE,
 )
 
 
@@ -23,8 +22,8 @@ class ModelLoader:
         self._email_model = None
         self._email_vectorizer = None
         self._url_model = None
+        self._url_label_encoder = None
         self._url_feature_names = None
-        self._phishing_url_model = None
     
     def load_email_model(self) -> Tuple[Optional[Any], Optional[Any]]:
         """
@@ -52,61 +51,34 @@ class ModelLoader:
             print(f"⚠ Error loading email ML model: {e}. Using rule-based detection as fallback.")
             return None, None
     
-    def load_url_model(self) -> Tuple[Optional[Any], Optional[Any]]:
+    def load_url_model(self) -> Tuple[Optional[Any], Optional[Any], Optional[Any]]:
         """
-        Load the URL phishing detection model and feature names
+        Load the URL classifier (RandomForest, 23 features, binary).
+        Pickle contains: {'model': rf, 'label_encoder': le, 'features': [...]}
         
         Returns:
-            Tuple of (model, feature_names) or (None, None) if loading fails
+            Tuple of (model, label_encoder, feature_names) or (None, None, None)
         """
-        if self._url_model is not None and self._url_feature_names is not None:
-            return self._url_model, self._url_feature_names
+        if self._url_model is not None:
+            return self._url_model, self._url_label_encoder, self._url_feature_names
         
         try:
-            model_path = get_model_path(URL_MODEL_FILE)
-            features_path = get_model_path(URL_FEATURES_FILE)
+            model_path = get_model_path(URL_CLASSIFIER_FILE)
             
-            if os.path.exists(model_path) and os.path.exists(features_path):
-                self._url_model = joblib.load(model_path)
-                self._url_feature_names = joblib.load(features_path)
-                print("✓ URL ML model loaded successfully")
-                return self._url_model, self._url_feature_names
+            if os.path.exists(model_path):
+                with open(model_path, 'rb') as f:
+                    data = pickle.load(f)
+                self._url_model = data['model']
+                self._url_label_encoder = data['label_encoder']
+                self._url_feature_names = data['features']
+                print(f"✓ URL classifier loaded: {len(self._url_feature_names)} features, classes={list(self._url_label_encoder.classes_)}")
+                return self._url_model, self._url_label_encoder, self._url_feature_names
             else:
-                print("⚠ URL ML model files not found. Using rule-based detection as fallback.")
-                return None, None
+                print(f"⚠ URL classifier not found at {model_path}. Using rule-based detection.")
+                return None, None, None
         except Exception as e:
-            print(f"⚠ Error loading URL ML model: {e}. Using rule-based detection as fallback.")
-            return None, None
-    
-    def load_phishing_url_model(self) -> Optional[Any]:
-        """
-        Load the Phishing-URL-Detection model (12 features)
-        
-        Returns:
-            Model or None if loading fails
-        """
-        if self._phishing_url_model is not None:
-            return self._phishing_url_model
-        
-        try:
-            # Try models in order of preference (newest first)
-            model_path = None
-            for model_name in PHISHING_URL_MODEL_FILES:
-                test_path = get_model_path(model_name)
-                if os.path.exists(test_path):
-                    model_path = test_path
-                    break
-            
-            if model_path:
-                self._phishing_url_model = joblib.load(model_path)
-                print(f"✓ Phishing URL model loaded successfully: {os.path.basename(model_path)}")
-                return self._phishing_url_model
-            else:
-                print("⚠ Phishing URL model not found.")
-                return None
-        except Exception as e:
-            print(f"⚠ Error loading Phishing URL model: {e}")
-            return None
+            print(f"⚠ Error loading URL classifier: {e}. Using rule-based detection.")
+            return None, None, None
     
     @property
     def email_model(self):
@@ -130,18 +102,18 @@ class ModelLoader:
         return self._url_model
     
     @property
+    def url_label_encoder(self):
+        """Get URL label encoder (lazy loading)"""
+        if self._url_label_encoder is None:
+            self.load_url_model()
+        return self._url_label_encoder
+    
+    @property
     def url_feature_names(self):
         """Get URL feature names (lazy loading)"""
         if self._url_feature_names is None:
             self.load_url_model()
         return self._url_feature_names
-    
-    @property
-    def phishing_url_model(self):
-        """Get phishing URL model (lazy loading)"""
-        if self._phishing_url_model is None:
-            self.load_phishing_url_model()
-        return self._phishing_url_model
 
 
 # Singleton instance

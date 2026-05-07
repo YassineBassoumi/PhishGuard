@@ -101,7 +101,31 @@ function AppContent() {
 
       // Check if response is ok
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        // Try to extract the backend's `detail` message (FastAPI convention)
+        let detail = '';
+        try {
+          const errBody = await response.json();
+          detail = errBody?.detail || '';
+        } catch {
+          // Response body was not JSON — ignore
+        }
+
+        if (response.status === 401) {
+          // Token invalide / expiré → déconnexion et retour à la page de login
+          console.warn('Analysis received 401 — logging out and redirecting to login.');
+          alert('Votre session a expiré. Veuillez vous reconnecter.');
+          logout();
+          return;
+        }
+
+        if (response.status === 403) {
+          // Compte banni ou accès refusé
+          alert(`Accès refusé${detail ? ' : ' + detail : ''}`);
+          return;
+        }
+
+        // Autre erreur (500, 400, 502, ...) — on remonte pour affichage générique
+        throw new Error(detail || `API error: ${response.status}`);
       }
 
       // Parse response
@@ -112,15 +136,8 @@ function AppContent() {
     } catch (error) {
       console.error('Analysis failed:', error);
 
-      // Show error to user
-      setResults({
-        type: type,
-        content: content.substring(0, 100) + '...',
-        threatLevel: 'safe',
-        confidence: 0,
-        features: ['Analysis failed: ' + error.message],
-        recommendations: ['Please try again or contact support']
-      });
+      // Erreur serveur / réseau → message d'erreur clair (pas de faux verdict « safe »)
+      alert(`Erreur lors de l'analyse : ${error.message}`);
     } finally {
       setIsAnalyzing(false);
     }

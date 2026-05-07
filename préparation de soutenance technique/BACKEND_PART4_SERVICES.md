@@ -54,9 +54,10 @@ token = create_access_token({"sub": user.email})
 **Méthodes:**
 
 1. **`analyze_email(content: str)`**
-   - Analyse contenu email
-   - Utilise modèle ML email
-   - Extrait features
+   - Analyse contenu message/texte (SMS, corps d'email, etc.)
+   - Utilise modèle ML entraîné sur données SMS
+   - Accepte texte brut uniquement (pas besoin d'en-têtes email structurés)
+   - Extrait features de phishing
    - Retourne: (threat_level, confidence, features, recommendations)
 
 2. **`analyze_url(url: str)`**
@@ -66,8 +67,10 @@ token = create_access_token({"sub": user.email})
    - Retourne: (threat_level, confidence, features, recommendations)
 
 **Modèles Chargés:**
-- `phishing_model.pkl` - SVM pour emails
+- `phishing_model.pkl` - SVM pour messages (entraîné sur SMS spam)
 - `phishing_url_model_final_v3.pkl` - SVM pour URLs
+
+**Note:** Le modèle email est entraîné sur un dataset SMS, donc optimisé pour du texte court et informel plutôt que des emails structurés complets.
 - `vectorizer.pkl` - TF-IDF vectorizer
 
 **Singleton:**

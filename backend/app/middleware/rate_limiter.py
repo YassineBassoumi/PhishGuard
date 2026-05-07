@@ -25,9 +25,13 @@ class RateLimiter:
         # Store: {ip_address: {endpoint: [(timestamp, count)]}}
         self.requests: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
         
-        # Track failed login attempts for brute force detection
+        # Track failed login attempts for brute force detection (per IP)
         # Store: {ip_address: [(timestamp, username_attempted)]}
         self.failed_logins: Dict[str, list] = defaultdict(list)
+        
+        # Track failed login attempts per USER account (for user-targeted alerts)
+        # Store: {username: [(timestamp, ip_address)]}
+        self.failed_logins_per_user: Dict[str, list] = defaultdict(list)
         
         # Track IPs that have been flagged for brute force
         # Store: {ip_address: (timestamp, is_blocked)}
@@ -36,10 +40,14 @@ class RateLimiter:
         self.lock = asyncio.Lock()
         self._cleanup_task = None
         
-        # Brute force detection thresholds
+        # Brute force detection thresholds (IP-wide, admin alert)
         self.brute_force_threshold = 10  # Failed attempts before flagging
         self.brute_force_window = 300  # 5 minutes window
         self.brute_force_block_duration = 3600  # Block for 1 hour
+        
+        # Per-user failed login alert threshold (user notification)
+        self.user_failed_login_threshold = 3  # Alert user after 3 failed attempts on their account
+        self.user_failed_login_window = 300  # 5 minutes window
         
         # Rate limit configurations (requests per minute)
         self.limits = {
@@ -115,7 +123,7 @@ class RateLimiter:
                 if not self.requests[ip]:
                     del self.requests[ip]
             
-            # Clean up old failed login attempts
+            # Clean up old failed login attempts (per IP)
             failed_login_cutoff = datetime.now() - timedelta(seconds=self.brute_force_window)
             for ip in list(self.failed_logins.keys()):
                 self.failed_logins[ip] = [
@@ -124,6 +132,16 @@ class RateLimiter:
                 ]
                 if not self.failed_logins[ip]:
                     del self.failed_logins[ip]
+            
+            # Clean up old per-user failed login attempts
+            user_failed_login_cutoff = datetime.now() - timedelta(seconds=self.user_failed_login_window)
+            for username in list(self.failed_logins_per_user.keys()):
+                self.failed_logins_per_user[username] = [
+                    (ts, ip) for ts, ip in self.failed_logins_per_user[username]
+                    if ts > user_failed_login_cutoff
+                ]
+                if not self.failed_logins_per_user[username]:
+                    del self.failed_logins_per_user[username]
             
             # Clean up old brute force blocks
             block_cutoff = datetime.now() - timedelta(seconds=self.brute_force_block_duration)
@@ -297,6 +315,65 @@ class RateLimiter:
         
         return is_blocked
     
+    async def record_failed_login_per_user(self, ip: str, username: str) -> bool:
+        """
+        Record a failed login attempt targeted at a specific user account,
+        and check whether the per-user alert threshold was just crossed.
+
+        This is SEPARATE from the IP-wide brute-force detection (which alerts admins).
+        This method alerts the USER that someone is trying to break into THEIR account.
+
+        Returns:
+            True if per-user threshold was just crossed (should notify the user).
+            False otherwise.
+        """
+        now = datetime.now()
+        window_start = now - timedelta(seconds=self.user_failed_login_window)
+
+        async with self.lock:
+            # Add failed attempt for this user
+            self.failed_logins_per_user[username].append((now, ip))
+
+            # Clean old attempts
+            self.failed_logins_per_user[username] = [
+                (ts, user_ip) for ts, user_ip in self.failed_logins_per_user[username]
+                if ts > window_start
+            ]
+
+            failed_count = len(self.failed_logins_per_user[username])
+
+            # Only return True when the threshold is *exactly* crossed,
+            # so we don't spam the user on every subsequent failed attempt.
+            if failed_count == self.user_failed_login_threshold:
+                logger.warning(
+                    f"Per-user failed-login threshold reached for '{username}': "
+                    f"{failed_count} failed attempts in {self.user_failed_login_window}s"
+                )
+                return True
+
+            return False
+
+    def get_user_failed_login_stats(self, username: str) -> Dict:
+        """Get failed login statistics for a specific user account"""
+        now = datetime.now()
+        window_start = now - timedelta(seconds=self.user_failed_login_window)
+
+        attempts = [
+            (ts, ip) for ts, ip in self.failed_logins_per_user.get(username, [])
+            if ts > window_start
+        ]
+
+        unique_ips = list(set(ip for _, ip in attempts))
+
+        return {
+            "username": username,
+            "failed_attempts": len(attempts),
+            "threshold": self.user_failed_login_threshold,
+            "window_seconds": self.user_failed_login_window,
+            "unique_ips": unique_ips,
+            "last_attempt": attempts[-1][0].isoformat() if attempts else None,
+        }
+
     def get_brute_force_stats(self, ip: str) -> Dict:
         """Get brute force attack statistics for an IP"""
         now = datetime.now()
