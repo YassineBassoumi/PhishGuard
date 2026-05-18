@@ -5,7 +5,7 @@ Monitors database health and sends alerts on failures
 
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.exc import OperationalError, DatabaseError
@@ -70,7 +70,7 @@ class DatabaseMonitorMiddleware(BaseHTTPMiddleware):
         """
         try:
             # Check cooldown
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             if self.last_alert_time:
                 time_since_last_alert = (current_time - self.last_alert_time).total_seconds()
                 if time_since_last_alert < self.alert_cooldown:

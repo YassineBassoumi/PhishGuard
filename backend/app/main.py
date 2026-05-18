@@ -24,21 +24,61 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _expired_sessions_cleanup_loop(interval_seconds: int = 6 * 3600):
+    """
+    Periodically delete rows from `user_sessions` whose `expires_at` is in the
+    past. Runs forever until the task is cancelled at shutdown.
+    """
+    import asyncio
+    from app.database import AsyncSessionLocal
+    from app.services.session_service import session_service
+
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                deleted = await session_service.cleanup_expired_sessions(db)
+                await db.commit()
+                if deleted:
+                    logger.info(f"Expired session cleanup: removed {deleted} row(s)")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Expired session cleanup failed: {e}")
+
+        try:
+            await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
     logger.info("Starting PhishGuard AI...")
-    
+
     # Import models to register them with Base
     from app.models import database_models, user_models, email_provider_models
     from app.database import init_db
-    
+
     await init_db()
     logger.info("Database initialized")
-    yield
-    # Shutdown
-    logger.info("Shutting down PhishGuard AI...")
+
+    # Schedule periodic cleanup of expired user_sessions rows
+    import asyncio
+    cleanup_task = asyncio.create_task(_expired_sessions_cleanup_loop())
+    logger.info("Expired session cleanup task scheduled (every 6h)")
+
+    try:
+        yield
+    finally:
+        # Shutdown
+        logger.info("Shutting down PhishGuard AI...")
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 # Initialize FastAPI app

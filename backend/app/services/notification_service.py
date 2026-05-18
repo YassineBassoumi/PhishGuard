@@ -6,7 +6,7 @@ Handles sending email notifications to users
 import os
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -111,7 +111,7 @@ class NotificationService:
                 'browser': login_details.get('browser', 'Unknown Browser'),
                 'location': login_details.get('location', 'Unknown Location'),
                 'ip_address': login_details.get('ip_address', 'Unknown'),
-                'login_time': login_details.get('login_time', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'login_time': login_details.get('login_time', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'confirm_url': f"{self.frontend_url}/settings",
                 'secure_url': f"{self.frontend_url}/settings?action=secure"
             }
@@ -185,7 +185,7 @@ class NotificationService:
             # Prepare template data
             template_data = {
                 'username': user.username,
-                'changed_at': change_details.get('changed_at', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'changed_at': change_details.get('changed_at', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'ip_address': change_details.get('ip_address', 'Unknown'),
                 'location': change_details.get('location', 'Unknown Location'),
                 'secure_url': f"{self.backend_url}/api/security/secure-account/{user.id}"
@@ -265,7 +265,7 @@ class NotificationService:
                 'action': action,
                 'status': 'enabled' if action == 'Enabled' else 'disabled',
                 'status_text': 'ENABLED' if action == 'Enabled' else 'DISABLED',
-                'changed_at': change_details.get('changed_at', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'changed_at': change_details.get('changed_at', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'ip_address': change_details.get('ip_address', 'Unknown'),
                 'location': change_details.get('location', 'Unknown Location'),
                 'secure_url': f"{self.frontend_url}/settings?action=secure"
@@ -344,7 +344,7 @@ class NotificationService:
                 'username': user.username,
                 'old_email': old_email,
                 'new_email': new_email,
-                'changed_at': change_details.get('changed_at', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'changed_at': change_details.get('changed_at', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'ip_address': change_details.get('ip_address', 'Unknown'),
                 'location': change_details.get('location', 'Unknown Location'),
                 'secure_url': f"{self.frontend_url}/settings?action=secure"
@@ -432,7 +432,7 @@ class NotificationService:
                 'location': attempt_details.get('location', 'Unknown Location'),
                 'last_attempt_at': attempt_details.get(
                     'last_attempt_at',
-                    datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                    datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
                 ),
                 'secure_url': f"{self.frontend_url}/settings?action=secure"
             }
@@ -499,7 +499,7 @@ class NotificationService:
             # Prepare template data
             template_data = {
                 'error_message': error_details.get('error_message', 'Unknown database error'),
-                'timestamp': error_details.get('timestamp', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'timestamp': error_details.get('timestamp', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'operation': error_details.get('operation', 'Unknown operation'),
                 'traceback': error_details.get('traceback', 'No traceback available'),
                 'server_url': self.backend_url,
@@ -565,7 +565,7 @@ class NotificationService:
                 'threshold': attack_details.get('threshold', 10),
                 'window_minutes': attack_details.get('window_seconds', 300) // 60,
                 'usernames_attempted': attack_details.get('usernames_attempted', []),
-                'timestamp': attack_details.get('timestamp', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')),
+                'timestamp': attack_details.get('timestamp', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')),
                 'is_blocked': attack_details.get('is_blocked', False),
                 'block_duration_hours': attack_details.get('block_duration', 3600) // 3600,
                 'pattern': attack_details.get('pattern', 'automated'),

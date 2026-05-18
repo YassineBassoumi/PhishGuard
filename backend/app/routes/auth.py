@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 import logging
 
 from app.models.auth_schemas import UserCreate, UserLogin, UserResponse, Token, UserUpdate, AccountDeleteRequest, RegistrationResponse
@@ -15,10 +15,14 @@ from app.models.user_models import User
 from app.services.auth_service import (
     auth_service,
     get_current_active_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    oauth2_scheme,
+    SECRET_KEY,
+    ALGORITHM,
 )
 from app.database import get_db
 from app.services.notification_service import notification_service
+from jose import jwt, JWTError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -157,7 +161,7 @@ async def login(
                                 'threshold': stats['threshold'],
                                 'window_seconds': stats['window_seconds'],
                                 'usernames_attempted': stats['usernames_attempted'],
-                                'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
                                 'is_blocked': stats['is_blocked'],
                                 'block_duration': rate_limiter.brute_force_block_duration,
                                 'pattern': stats['pattern'],
@@ -205,7 +209,7 @@ async def login(
                                         'threshold': stats['threshold'],
                                         'ip_address': client_ip,
                                         'location': location,
-                                        'last_attempt_at': datetime.utcnow().strftime(
+                                        'last_attempt_at': datetime.now(timezone.utc).strftime(
                                             '%Y-%m-%d %H:%M:%S UTC'
                                         ),
                                     }
@@ -300,7 +304,7 @@ async def login(
             # Mark first login as complete
             user.is_first_login = False
         
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         
         # Create session and get JTI
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -344,12 +348,33 @@ async def login(
             async def send_login_notification_background():
                 """Background task to send notification with its own DB session.
 
+                Also persists the resolved geolocation onto the freshly-created
+                `user_sessions` row so the UI's "Gestion des Sessions" can show it.
+
                 Only fires the new-login alert if the (user, IP, device) combination
                 has never been seen before. This avoids the previous behaviour where
                 EVERY login produced a notification, training users to ignore them.
                 """
                 async for notification_db in get_notification_db():
                     try:
+                        # Resolve location once for both the session row and the alert
+                        location = await get_location_from_ip(client_ip)
+
+                        # Persist location on the freshly-created session
+                        try:
+                            from sqlalchemy import update as sql_update
+                            from app.models.session_models import UserSession
+                            await notification_db.execute(
+                                sql_update(UserSession)
+                                .where(UserSession.token_jti == jti)
+                                .values(location=location)
+                            )
+                            await notification_db.commit()
+                        except Exception as loc_err:
+                            logger.warning(
+                                f"Failed to persist session location for jti={jti}: {loc_err}"
+                            )
+
                         # Skip the alert if this device has been seen before for this user.
                         # We exclude the freshly-created session (jti) so it doesn't
                         # falsely match itself.
@@ -374,8 +399,6 @@ async def login(
                         )
                         fresh_user = result.scalar_one()
 
-                        location = await get_location_from_ip(client_ip)
-
                         await notification_service.send_new_login_alert(
                             db=notification_db,
                             user=fresh_user,
@@ -384,7 +407,7 @@ async def login(
                                 'browser': user_agent[:50],
                                 'location': location,
                                 'ip_address': client_ip,
-                                'login_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                                'login_time': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
                             }
                         )
                     finally:
@@ -413,6 +436,47 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
         )
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK, tags=["Authentication"])
+async def logout(
+    current_user: User = Depends(get_current_active_user),
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Logout the current user by revoking the active session.
+
+    The JWT remains cryptographically valid until its `exp`, but the matching
+    `user_sessions` row is marked `is_active=False`, so any further request
+    using this token will be rejected by `get_current_user` (401).
+    """
+    try:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except JWTError:
+            # Token invalid → nothing to revoke, but treat as success for idempotency
+            return {"message": "Logged out"}
+
+        jti = payload.get("jti")
+        if not jti:
+            # Legacy token without JTI — nothing to revoke server-side
+            return {"message": "Logged out"}
+
+        from app.services.session_service import session_service
+        revoked = await session_service.revoke_session_by_jti(
+            db, jti=jti, user_id=current_user.id
+        )
+        await db.commit()
+
+        if revoked:
+            logger.info(f"User logged out: {current_user.username} (jti={jti})")
+        return {"message": "Logged out"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Logout failed for {current_user.username}: {str(e)}", exc_info=True)
+        # Never block client-side logout on server errors
+        return {"message": "Logged out"}
 
 
 @router.get("/me", response_model=UserResponse, tags=["Authentication"])
@@ -517,7 +581,7 @@ async def update_current_user(
                                 db=notification_db,
                                 user=fresh_user,
                                 change_details={
-                                    'changed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                    'changed_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
                                     'ip_address': client_ip,
                                     'location': location
                                 }
@@ -563,7 +627,7 @@ async def update_current_user(
                                 old_email=email_old,
                                 new_email=email_new,
                                 change_details={
-                                    'changed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                                    'changed_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
                                     'ip_address': email_change_ip,
                                     'location': location,
                                 }

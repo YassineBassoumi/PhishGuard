@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from typing import List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.auth_schemas import UserResponse, UserRoleUpdate, UserBanRequest
 from app.models.user_models import User
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/users", tags=["Admin"])
 async def list_users(
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     current_user: User = Depends(require_admin),
@@ -50,6 +51,15 @@ async def list_users(
         )
         users = result.scalars().all()
         
+        # Audit log
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.ADMIN_VIEWED_USERS.value,
+            actor_id=current_user.id,
+            request=request
+        )
+        await db.commit()
+        
         logger.info(f"Admin {current_user.username} listed users")
         
         return {
@@ -70,6 +80,7 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=UserResponse, tags=["Admin"])
 async def get_user(
     user_id: int,
+    request: Request,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -87,6 +98,16 @@ async def get_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
+        
+        # Audit log
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.ADMIN_VIEWED_USER_DETAILS.value,
+            actor_id=current_user.id,
+            target_user_id=user.id,
+            request=request
+        )
+        await db.commit()
         
         logger.info(f"Admin {current_user.username} viewed user {user.username}")
         
@@ -205,8 +226,29 @@ async def delete_user(
             target_username=username,
             request=request
         )
+        await db.commit()
         
-        await db.delete(user)
+        # Expunge user from ORM session to avoid cascade issues
+        db.expunge(user)
+        
+        # Use direct DELETE statements to avoid ORM cascade setting user_id=NULL
+        # on NOT NULL columns (user_sessions, etc.)
+        from sqlalchemy import delete as sql_delete
+        from app.models.session_models import UserSession
+        from app.models.email_provider_models import UserEmailCredential
+        from app.models.database_models import AnalysisHistory
+        from app.models.notification_models import NotificationPreference, NotificationHistory
+        from app.models.password_reset_models import PasswordResetToken
+        from app.models.email_verification_models import EmailVerificationToken
+        
+        await db.execute(sql_delete(UserSession).where(UserSession.user_id == user_id_to_log))
+        await db.execute(sql_delete(UserEmailCredential).where(UserEmailCredential.user_id == user_id_to_log))
+        await db.execute(sql_delete(AnalysisHistory).where(AnalysisHistory.user_id == user_id_to_log))
+        await db.execute(sql_delete(NotificationHistory).where(NotificationHistory.user_id == user_id_to_log))
+        await db.execute(sql_delete(NotificationPreference).where(NotificationPreference.user_id == user_id_to_log))
+        await db.execute(sql_delete(PasswordResetToken).where(PasswordResetToken.user_id == user_id_to_log))
+        await db.execute(sql_delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user_id_to_log))
+        await db.execute(sql_delete(User).where(User.id == user_id_to_log))
         await db.commit()
         
         logger.info(f"SuperAdmin {current_user.username} deleted user {username}")
@@ -226,6 +268,7 @@ async def delete_user(
 
 @router.get("/stats", tags=["Admin"])
 async def get_system_stats(
+    request: Request,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -263,7 +306,7 @@ async def get_system_stats(
         
         # Users logged in last 24 hours
         from datetime import datetime, timedelta
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         recent_logins_result = await db.execute(
             select(func.count(User.id)).where(User.last_login >= yesterday)
         )
@@ -280,6 +323,15 @@ async def get_system_stats(
             select(func.count(User.id)).where(User.is_banned == True)
         )
         banned_users = banned_users_result.scalar()
+        
+        # Audit log
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.ADMIN_VIEWED_STATS.value,
+            actor_id=current_user.id,
+            request=request
+        )
+        await db.commit()
         
         logger.info(f"Admin {current_user.username} viewed system stats")
         
@@ -304,6 +356,7 @@ async def get_system_stats(
 @router.get("/users/{user_id}/activity", tags=["Admin"])
 async def get_user_activity(
     user_id: int,
+    request: Request,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -379,6 +432,16 @@ async def get_user_activity(
             }
             for analysis in recent_analyses
         ]
+        
+        # Audit log
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.ADMIN_VIEWED_USER_ACTIVITY.value,
+            actor_id=current_user.id,
+            target_user_id=user.id,
+            request=request
+        )
+        await db.commit()
         
         logger.info(f"Admin {current_user.username} viewed activity for user {user.username}")
         
@@ -458,7 +521,7 @@ async def ban_user(
         
         # Ban the user
         user.is_banned = True
-        user.banned_at = datetime.utcnow()
+        user.banned_at = datetime.now(timezone.utc)
         user.banned_by = current_user.id
         user.ban_reason = ban_request.reason
         
@@ -481,13 +544,6 @@ async def ban_user(
     
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to ban user: {str(e)}", exc_info=True)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to ban user: {str(e)}"
-        )
     except Exception as e:
         logger.error(f"Failed to ban user: {str(e)}", exc_info=True)
         await db.rollback()
@@ -765,7 +821,7 @@ async def get_audit_stats(
         
         # Recent activity (last 24 hours)
         from datetime import datetime, timedelta
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         recent_activity_result = await db.execute(
             select(func.count(AuditLog.id)).where(AuditLog.created_at >= yesterday)
         )
@@ -840,7 +896,7 @@ async def get_all_email_connections(
                 # Check if token is expired
                 is_expired = False
                 if conn.token_expiry:
-                    is_expired = conn.token_expiry < datetime.utcnow()
+                    is_expired = conn.token_expiry < datetime.now(timezone.utc)
                 
                 response.append({
                     "id": conn.id,
@@ -902,7 +958,7 @@ async def get_email_provider_stats(
                 connections_by_provider[provider_name] = count
         
         # Active connections (not expired)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         active_result = await db.execute(
             select(func.count(UserEmailCredential.id))
             .where(
@@ -929,7 +985,7 @@ async def get_email_provider_stats(
         users_with_connections = users_result.scalar()
         
         # Recent connections (last 24 hours)
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         recent_result = await db.execute(
             select(func.count(UserEmailCredential.id))
             .where(UserEmailCredential.created_at >= yesterday)
@@ -1064,7 +1120,7 @@ async def get_user_email_connections(
             # Check if token is expired
             is_expired = False
             if conn.token_expiry:
-                is_expired = conn.token_expiry < datetime.utcnow()
+                is_expired = conn.token_expiry < datetime.now(timezone.utc)
             
             response.append({
                 "id": conn.id,
@@ -1137,6 +1193,7 @@ async def get_rate_limit_status(
 @router.delete("/rate-limits/clear/{ip_address}", tags=["Admin - Rate Limits"])
 async def clear_rate_limit(
     ip_address: str,
+    request: Request,
     endpoint: Optional[str] = None,
     current_user: User = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db)
@@ -1160,6 +1217,16 @@ async def clear_rate_limit(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No rate limit records found for this IP"
             )
+        
+        # Audit log — destructive operation
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.RATE_LIMIT_CLEARED.value,
+            actor_id=current_user.id,
+            details={"ip_address": ip_address, "endpoint": endpoint or "all"},
+            request=request
+        )
+        await db.commit()
         
         logger.warning(
             f"SuperAdmin {current_user.username} cleared rate limits for IP {ip_address}"
@@ -1354,7 +1421,7 @@ async def test_database_error_notification(
         # Prepare test error details
         error_details = {
             'error_message': 'TEST: Simulated database connection failure for notification testing',
-            'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'operation': 'TEST: Admin-triggered notification test',
             'traceback': 'This is a test notification. No actual error occurred.\n\nStack trace simulation:\n  File "test.py", line 1, in <module>\n    test_database_error()\n  File "test.py", line 5, in test_database_error\n    raise Exception("Test error")'
         }
@@ -1462,6 +1529,7 @@ async def check_brute_force_status(
 @router.delete("/brute-force/unblock/{ip_address}", tags=["Admin - Security"])
 async def unblock_brute_force_ip(
     ip_address: str,
+    request: Request,
     current_user: User = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1488,6 +1556,16 @@ async def unblock_brute_force_ip(
         # Clear failed login history
         if ip_address in rate_limiter.failed_logins:
             del rate_limiter.failed_logins[ip_address]
+        
+        # Audit log — destructive operation
+        await audit_service.log_action(
+            db=db,
+            action=AuditAction.BRUTE_FORCE_IP_UNBLOCKED.value,
+            actor_id=current_user.id,
+            details={"ip_address": ip_address},
+            request=request
+        )
+        await db.commit()
         
         logger.warning(f"SuperAdmin {current_user.username} manually unblocked IP {ip_address}")
         
@@ -1528,7 +1606,7 @@ async def test_brute_force_notification(
             'threshold': 10,
             'window_seconds': 300,
             'usernames_attempted': ['admin', 'root', 'user', 'test', 'administrator'],
-            'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'is_blocked': True,
             'block_duration': 3600,
             'pattern': 'automated',

@@ -16,7 +16,7 @@ from app.models.auth_schemas import (
 from app.services.auth_service import get_current_active_user, auth_service
 from app.services.two_factor_service import two_factor_service
 from app.services.notification_service import notification_service
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ async def enable_2fa(
                         user=fresh_user,
                         action='Enabled',
                         change_details={
-                            'changed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                            'changed_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
                             'ip_address': client_ip,
                             'location': location
                         }
@@ -223,7 +223,7 @@ async def disable_2fa(
                         user=fresh_user,
                         action='Disabled',
                         change_details={
-                            'changed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                            'changed_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
                             'ip_address': client_ip,
                             'location': location
                         }

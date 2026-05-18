@@ -3,7 +3,7 @@ Email verification service
 Handles email verification token generation, validation, and email sending
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import secrets
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +37,7 @@ class EmailVerificationService:
         token = secrets.token_urlsafe(32)
         
         # Calculate expiration time
-        expires_at = datetime.utcnow() + timedelta(hours=self.TOKEN_EXPIRY_HOURS)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=self.TOKEN_EXPIRY_HOURS)
         
         # Create token record
         verification_token = EmailVerificationToken(
@@ -73,7 +73,7 @@ class EmailVerificationService:
                 and_(
                     EmailVerificationToken.token == token,
                     EmailVerificationToken.is_used == False,
-                    EmailVerificationToken.expires_at > datetime.utcnow()
+                    EmailVerificationToken.expires_at > datetime.now(timezone.utc)
                 )
             )
         )
@@ -88,7 +88,7 @@ class EmailVerificationService:
             any_token = result_any.scalar_one_or_none()
             
             if any_token:
-                logger.warning(f"Token found but invalid - is_used: {any_token.is_used}, expires_at: {any_token.expires_at}, now: {datetime.utcnow()}")
+                logger.warning(f"Token found but invalid - is_used: {any_token.is_used}, expires_at: {any_token.expires_at}, now: {datetime.now(timezone.utc)}")
             else:
                 logger.warning(f"Token not found in database: {token[:20]}...")
             

@@ -6,7 +6,7 @@ Handles fetching and managing user notifications
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, desc, func
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import logging
 
@@ -171,7 +171,7 @@ async def mark_notification_as_read(
         
         # Mark as read
         notification.is_read = True
-        notification.read_at = datetime.utcnow()
+        notification.read_at = datetime.now(timezone.utc)
         
         await db.commit()
         
@@ -205,7 +205,7 @@ async def mark_all_notifications_as_read(
                     NotificationHistory.is_read == False
                 )
             )
-            .values(is_read=True, read_at=datetime.utcnow())
+            .values(is_read=True, read_at=datetime.now(timezone.utc))
         )
         
         await db.commit()

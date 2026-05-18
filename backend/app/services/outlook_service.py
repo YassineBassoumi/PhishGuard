@@ -7,7 +7,7 @@ import requests
 from typing import List, Dict, Optional
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class OutlookService:
             
             # Calculate token expiry
             expires_in = tokens.get('expires_in', 3600)
-            token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+            token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
             
             return {
                 "token": tokens['access_token'],
@@ -128,7 +128,7 @@ class OutlookService:
             tokens = response.json()
             
             expires_in = tokens.get('expires_in', 3600)
-            token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+            token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
             
             return {
                 "token": tokens['access_token'],

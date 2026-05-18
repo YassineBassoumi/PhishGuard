@@ -3,8 +3,27 @@ Session management service
 Handles user session tracking and management
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
+
+
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """
+    Force a datetime to be timezone-aware in UTC.
+
+    The legacy code path stored values via `datetime.now(timezone.utc)` which produces a
+    naive datetime. When such a value is serialized by Pydantic it is emitted
+    without a `Z`/offset, and the browser then interprets it as **local time**.
+    For a UTC+01 user this caused `last_activity` to appear shifted by 1 hour.
+
+    Treating any naive datetime as UTC here guarantees the JSON payload always
+    carries an explicit offset, which `new Date(...)` parses correctly.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
 from fastapi import Request
@@ -94,7 +113,7 @@ class SessionService:
             ip_address=ip_address,
             user_agent=user_agent,
             location=None,  # Can be enhanced with IP geolocation service
-            expires_at=datetime.utcnow() + expires_delta
+            expires_at=datetime.now(timezone.utc) + expires_delta,
         )
         
         db.add(session)
@@ -150,7 +169,7 @@ class SessionService:
             .where(
                 UserSession.user_id == user_id,
                 UserSession.is_active == True,
-                UserSession.expires_at > datetime.utcnow()
+                UserSession.expires_at > datetime.now(timezone.utc)
             )
             .order_by(UserSession.last_activity.desc())
         )
@@ -165,9 +184,11 @@ class SessionService:
                 "ip_address": session.ip_address,
                 "location": session.location,
                 "is_current": session.token_jti == current_jti,
-                "last_activity": session.last_activity,
-                "created_at": session.created_at,
-                "expires_at": session.expires_at
+                # Force UTC tz-info so the JSON includes an explicit offset and
+                # the browser does NOT interpret it as local time.
+                "last_activity": _as_utc(session.last_activity),
+                "created_at": _as_utc(session.created_at),
+                "expires_at": _as_utc(session.expires_at),
             }
             session_list.append(session_dict)
         
@@ -177,9 +198,17 @@ class SessionService:
     async def revoke_session(
         db: AsyncSession,
         session_id: int,
-        user_id: int
-    ) -> bool:
-        """Revoke a specific session"""
+        user_id: int,
+        current_jti: Optional[str] = None
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Revoke a specific session.
+
+        Returns:
+            (success, error_code):
+                success=True  → session was revoked
+                success=False → error_code in {"not_found", "current_session"}
+        """
         result = await db.execute(
             select(UserSession)
             .where(
@@ -188,10 +217,42 @@ class SessionService:
             )
         )
         session = result.scalar_one_or_none()
-        
+
+        if not session:
+            return False, "not_found"
+
+        # Refuse to revoke the caller's own current session via this endpoint.
+        # The dedicated logout endpoint must be used instead, so the API
+        # does not invalidate the very token making the request.
+        if current_jti and session.token_jti == current_jti:
+            return False, "current_session"
+
+        session.is_active = False
+        await db.flush()
+        return True, None
+
+    @staticmethod
+    async def revoke_session_by_jti(
+        db: AsyncSession,
+        jti: str,
+        user_id: int
+    ) -> bool:
+        """
+        Revoke a session identified by its JWT ID (used by /auth/logout).
+        Returns True if a matching active session was found and revoked.
+        """
+        result = await db.execute(
+            select(UserSession)
+            .where(
+                UserSession.token_jti == jti,
+                UserSession.user_id == user_id,
+            )
+        )
+        session = result.scalar_one_or_none()
+
         if not session:
             return False
-        
+
         session.is_active = False
         await db.flush()
         return True
@@ -233,7 +294,7 @@ class SessionService:
             .where(
                 UserSession.token_jti == jti,
                 UserSession.is_active == True,
-                UserSession.expires_at > datetime.utcnow()
+                UserSession.expires_at > datetime.now(timezone.utc)
             )
         )
         session = result.scalar_one_or_none()
@@ -255,7 +316,7 @@ class SessionService:
             await db.execute(
                 update(UserSession)
                 .where(UserSession.token_jti == jti)
-                .values(last_activity=datetime.utcnow())
+                .values(last_activity=datetime.now(timezone.utc))
             )
             # Don't flush here - let the request handler commit at the end
             # This prevents blocking on every request
@@ -271,7 +332,7 @@ class SessionService:
         """Clean up expired sessions"""
         result = await db.execute(
             delete(UserSession)
-            .where(UserSession.expires_at < datetime.utcnow())
+            .where(UserSession.expires_at < datetime.now(timezone.utc))
         )
         return result.rowcount
 

@@ -12,15 +12,12 @@ import enum
 class AuditAction(str, enum.Enum):
     """Audit action types"""
     # User management
-    USER_CREATED = "USER_CREATED"
-    USER_UPDATED = "USER_UPDATED"
     USER_DELETED = "USER_DELETED"
     USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
     USER_BANNED = "USER_BANNED"
     USER_UNBANNED = "USER_UNBANNED"
     
     # Admin actions
-    ADMIN_LOGIN = "ADMIN_LOGIN"
     ADMIN_VIEWED_USERS = "ADMIN_VIEWED_USERS"
     ADMIN_VIEWED_USER_DETAILS = "ADMIN_VIEWED_USER_DETAILS"
     ADMIN_VIEWED_USER_ACTIVITY = "ADMIN_VIEWED_USER_ACTIVITY"
@@ -30,8 +27,10 @@ class AuditAction(str, enum.Enum):
     # Email provider management
     EMAIL_CONNECTION_REVOKED = "EMAIL_CONNECTION_REVOKED"
     
-    # System actions
-    SYSTEM_CONFIG_CHANGED = "SYSTEM_CONFIG_CHANGED"
+    # Rate limit / brute-force management
+    RATE_LIMIT_CLEARED = "RATE_LIMIT_CLEARED"
+    BRUTE_FORCE_IP_UNBLOCKED = "BRUTE_FORCE_IP_UNBLOCKED"
+    
 
 
 class AuditLog(Base):

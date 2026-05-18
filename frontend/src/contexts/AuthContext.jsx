@@ -124,27 +124,44 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     // Get current user to clean up their credentials
     const currentUser = user;
-    
+    const currentToken = token;
+
+    // Best-effort server-side session revocation. We don't block the UI on
+    // network errors — local state is cleared regardless so the user is
+    // effectively logged out even if the backend is unreachable.
+    if (currentToken) {
+      try {
+        await fetch('http://localhost:8000/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`
+          }
+        });
+      } catch (err) {
+        console.warn('Server-side logout failed (continuing local logout):', err);
+      }
+    }
+
     // Remove auth data
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
-    
+
     // Remove user-specific provider credentials
     if (currentUser) {
       const userId = currentUser.id || currentUser.username;
       const providers = ['gmail', 'outlook'];
-      
+
       providers.forEach(provider => {
         localStorage.removeItem(`${provider}_credentials_${userId}`);
       });
-      
+
       // Also remove old non-user-specific credentials (for cleanup)
       localStorage.removeItem('gmail_credentials');
     }
-    
+
     setToken(null);
     setUser(null);
   };

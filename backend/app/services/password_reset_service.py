@@ -3,7 +3,7 @@ Password reset service
 """
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
@@ -42,7 +42,7 @@ class PasswordResetService:
         token = PasswordResetService.generate_reset_token()
         
         # Calculate expiration
-        expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
         
         # Create token record
         reset_token = PasswordResetToken(
@@ -77,7 +77,7 @@ class PasswordResetService:
             .where(
                 PasswordResetToken.token == token,
                 PasswordResetToken.is_used == False,
-                PasswordResetToken.expires_at > datetime.utcnow()
+                PasswordResetToken.expires_at > datetime.now(timezone.utc)
             )
         )
         reset_token = result.scalar_one_or_none()
@@ -167,7 +167,7 @@ class PasswordResetService:
         """
         result = await db.execute(
             delete(PasswordResetToken)
-            .where(PasswordResetToken.expires_at < datetime.utcnow())
+            .where(PasswordResetToken.expires_at < datetime.now(timezone.utc))
         )
         return result.rowcount
     

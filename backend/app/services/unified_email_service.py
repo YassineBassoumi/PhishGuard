@@ -113,7 +113,7 @@ class UnifiedEmailService:
     ):
         """Store or update user credentials for provider"""
         try:
-            from datetime import datetime
+            from datetime import datetime, timezone
             from sqlalchemy.dialects.postgresql import insert
             
             # Convert token_expiry string to datetime if needed
@@ -140,7 +140,7 @@ class UnifiedEmailService:
                     'refresh_token': stmt.excluded.refresh_token,
                     'token_expiry': stmt.excluded.token_expiry,
                     'email_address': stmt.excluded.email_address,
-                    'updated_at': datetime.utcnow()
+                    'updated_at': datetime.now(timezone.utc)
                 }
             )
             
@@ -255,7 +255,7 @@ class UnifiedEmailService:
             Updated credentials with fresh token
         """
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
             
             # Check if token_expiry exists and is expired
             token_expiry = credentials.get('token_expiry')
@@ -274,7 +274,7 @@ class UnifiedEmailService:
                     return credentials
             
             # Check if token is expired or will expire in next 5 minutes
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             buffer = timedelta(minutes=5)
             
             if token_expiry > now + buffer:

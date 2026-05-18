@@ -48,24 +48,35 @@ async def get_sessions(
 async def revoke_session(
     request: RevokeSessionRequest,
     current_user: User = Depends(get_current_active_user),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
-    """Revoke a specific session"""
+    """Revoke a specific session (cannot revoke the caller's current session)"""
     try:
-        success = await session_service.revoke_session(
+        # Extract JTI from current token so the service can refuse to kill it
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        current_jti = payload.get("jti")
+
+        success, error_code = await session_service.revoke_session(
             db,
             request.session_id,
-            current_user.id
+            current_user.id,
+            current_jti=current_jti,
         )
-        
+
         if not success:
+            if error_code == "current_session":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot revoke your current session. Use /api/auth/logout instead."
+                )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found"
             )
-        
+
         await db.commit()
-        
+
         return {"message": "Session revoked successfully"}
     except HTTPException:
         raise

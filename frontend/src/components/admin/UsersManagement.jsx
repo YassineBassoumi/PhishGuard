@@ -14,6 +14,7 @@ export function UsersManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showBanModal, setShowBanModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState(null);
   const usersPerPage = 10;
 
@@ -79,6 +80,8 @@ export function UsersManagement() {
   };
 
   const confirmDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
     try {
       await adminApi.deleteUser(selectedUser.id);
       setShowDeleteModal(false);
@@ -88,6 +91,8 @@ export function UsersManagement() {
     } catch (error) {
       console.error('Failed to delete user:', error);
       showToast('Erreur lors de la suppression de l\'utilisateur', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -473,6 +478,7 @@ export function UsersManagement() {
         <DeleteUserModal
           user={selectedUser}
           onConfirm={confirmDelete}
+          loading={deleting}
           onCancel={() => {
             setShowDeleteModal(false);
             setSelectedUser(null);
@@ -690,7 +696,7 @@ function BanUserModal({ user, onConfirm, onCancel }) {
 }
 
 // Delete User Modal Component
-function DeleteUserModal({ user, onConfirm, onCancel }) {
+function DeleteUserModal({ user, onConfirm, onCancel, loading = false }) {
   return (
     <div style={{
       position: 'fixed',
@@ -759,18 +765,20 @@ function DeleteUserModal({ user, onConfirm, onCancel }) {
           </button>
           <button
             onClick={onConfirm}
+            disabled={loading}
             style={{
               padding: '12px 24px',
-              backgroundColor: '#ef4444',
+              backgroundColor: loading ? '#fca5a5' : '#ef4444',
               color: 'white',
               border: 'none',
               borderRadius: '12px',
               fontSize: '14px',
               fontWeight: '600',
-              cursor: 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1
             }}
           >
-            Supprimer
+            {loading ? 'Suppression...' : 'Supprimer'}
           </button>
         </div>
       </div>

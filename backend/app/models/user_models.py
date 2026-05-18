@@ -26,7 +26,6 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
     is_active = Column(Boolean, default=True)
-    # is_superuser removed: replaced by `role` field (UserRole.SUPERADMIN)
     is_banned = Column(Boolean, default=False, nullable=False)
     banned_at = Column(DateTime(timezone=True), nullable=True)
     banned_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -34,8 +33,6 @@ class User(Base):
     last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Email verification
     email_verified = Column(Boolean, default=False, nullable=False)
     
     # Two-Factor Authentication fields

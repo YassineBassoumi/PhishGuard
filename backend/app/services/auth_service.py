@@ -3,7 +3,7 @@ Authentication service
 Handles password hashing, JWT tokens, and user authentication
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
@@ -25,9 +25,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 http_bearer = HTTPBearer(auto_error=False)
 
 # JWT settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-09876543210")
+_DEFAULT_INSECURE_SECRET = "your-secret-key-change-this-in-production-09876543210"
+SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_INSECURE_SECRET)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
+# Refuse to boot in production with the insecure fallback secret.
+# In any other environment we only emit a loud warning so local dev keeps working.
+if SECRET_KEY == _DEFAULT_INSECURE_SECRET:
+    _env = os.getenv("ENVIRONMENT", "development").lower()
+    _msg = (
+        "SECRET_KEY is using the insecure default fallback. "
+        "Set the SECRET_KEY environment variable to a strong random value."
+    )
+    if _env in ("production", "prod"):
+        raise RuntimeError(_msg)
+    import logging as _logging
+    _logging.getLogger(__name__).warning("SECURITY: " + _msg)
 
 
 class AuthService:
@@ -67,9 +81,9 @@ class AuthService:
         """Create a JWT access token"""
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
         to_encode.update({"exp": expire})
         

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import logging
 
@@ -125,7 +125,7 @@ async def secure_account(
                     
                     <div class="info">
                         <p><strong>Security Request Details:</strong></p>
-                        <p>📅 Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                        <p>📅 Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
                         <p>🌍 Location: {location}</p>
                         <p>🔢 IP Address: {client_ip}</p>
                     </div>
