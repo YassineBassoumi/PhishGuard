@@ -68,7 +68,7 @@
 **R** : *Authentification par JWT signé HS256 avec une clé secrète stockée dans `.env`. Token valable 30 minutes. Le password est hashé avec bcrypt (avec salt automatique) avant d'être stocké en base. À chaque requête, le middleware FastAPI vérifie le token, le décode, charge l'utilisateur en base et l'injecte dans la route.*
 
 ### 🟢 Q3.2 — Comment fonctionne la 2FA ?
-**R** : *On utilise TOTP (Time-based One-Time Password, RFC 6238). Quand l'utilisateur active 2FA, on génère un secret base32 aléatoire, on construit l'URL `otpauth://totp/...` qui est encodée en QR code. L'utilisateur scanne avec Google Authenticator / Authy. Ensuite, à chaque login, on vérifie le code 6 chiffres avec une fenêtre de tolérance de ±1 période (30 s) avec la lib `pyotp`. On génère aussi 10 codes de secours en cas de perte du téléphone.*
+**R** : *On utilise TOTP (Time-based One-Time Password, RFC 6238). Quand l'utilisateur active 2FA, on génère un secret base32 aléatoire, on construit l'URL `otpauth://totp/...` qui est encodée en QR code. L'utilisateur scanne avec Google Authenticator / Authy. Ensuite, à chaque login, on vérifie le code 6 chiffres avec une fenêtre de tolérance de ±1 période (30 s) avec la lib `pyotp`. On génère aussi 8 codes de secours (format XXXX-XXXX, alphanumérique sans caractères ambigus) pour l'accès de récupération en cas de perte du téléphone. Chaque code est à usage unique et normalisé à la vérification (insensible à la casse, tirets/espaces ignorés).*
 
 ### 🟡 Q3.3 — Comment stockez-vous les tokens OAuth Gmail/Outlook ?
 **R** : *Les `access_token` et `refresh_token` sont stockés en base dans la table `user_email_credentials`. Pour la production, ils devraient être chiffrés au repos (idéalement avec une clé KMS / AWS Secrets Manager / HashiCorp Vault). Aujourd'hui ils sont stockés en clair en base — c'est une amélioration prévue. La connexion à la base utilise SSL (Supabase l'impose).*
@@ -288,10 +288,17 @@ confidence = max(prob, 1.0 - prob) * 100
 ### 🔴 Q9.3 — Y a-t-il des considérations RGPD ?
 **R** : *Oui :*
 - *Le contenu des emails analysés contient des données personnelles → on stocke seulement un **preview** (1ères lignes) en `analysis_history`, pas le contenu complet*
-- *L'utilisateur peut **supprimer son compte** → cascade delete sur toutes ses données*
+- *L'utilisateur peut **désactiver son compte** (réversible) ou demander la suppression complète via l'admin → cascade delete sur toutes ses données. La désactivation ne supprime rien, elle désactive juste l'accès.*
 - *Politique de rétention des `audit_logs` à définir (actuellement infini, devrait être plafonné à 1 an)*
 - *Tokens OAuth → données sensibles, à chiffrer*
 - *Mention légale et politique de confidentialité à rédiger pour la prod*
+
+### 🟡 Q9.4 — Pourquoi désactivation plutôt que suppression de compte ?
+**R** : *Choix professionnel inspiré de Facebook/Instagram. La désactivation est réversible : l'utilisateur qui désactive son compte peut le réactiver en se reconnectant simplement — une modal lui demande de confirmer la réactivation. Avantages :*
+- *Pas de perte accidentelle de données*
+- *Conforme au RGPD (droit à la portabilité : les données restent disponibles)*
+- *Meilleure UX : l'utilisateur ne perd pas son historique d'analyses*
+- *L'admin conserve la possibilité de supprimer définitivement un compte (panel admin)*
 
 ---
 
@@ -313,7 +320,7 @@ D'après l'expérience générale en soutenance technique, **prépare ces 10 ré
 2. Combien d'utilisateurs / requêtes pourrais-tu gérer aujourd'hui ?
 3. Quelle est ta valeur ajoutée vs les outils existants ?
 4. Comment éviter les faux positifs ?
-5. Comment gérer l'authentification (JWT + 2FA) ?
+5. Comment gérer l'authentification (JWT + 2FA + backup codes) ?
 6. Comment se connecter à Gmail (OAuth) ?
 7. Quelles sont les limites du projet ?
 8. Quelle est ta contribution personnelle ?

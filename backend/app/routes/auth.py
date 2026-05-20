@@ -10,7 +10,7 @@ from sqlalchemy import select, delete
 from datetime import timedelta, datetime, timezone
 import logging
 
-from app.models.auth_schemas import UserCreate, UserLogin, UserResponse, Token, UserUpdate, AccountDeleteRequest, RegistrationResponse
+from app.models.auth_schemas import UserCreate, UserLogin, UserResponse, Token, UserUpdate, AccountDeactivateRequest, RegistrationResponse
 from app.models.user_models import User
 from app.services.auth_service import (
     auth_service,
@@ -230,10 +230,22 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Check if user is banned (priority over deactivation - banned users cannot reactivate themselves)
+        if user.is_banned:
+            ban_message = f"Account has been banned"
+            if user.ban_reason:
+                ban_message += f": {user.ban_reason}"
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ban_message
+            )
+        
+        # Check if account is deactivated - offer reactivation
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="ACCOUNT_DEACTIVATED",
+                headers={"X-Reactivation-Required": "true"}
             )
         
         # Check if email is verified
@@ -242,16 +254,6 @@ async def login(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Email non vérifié. Veuillez vérifier votre email avant de vous connecter.",
                 headers={"X-Email-Verified": "false"}
-            )
-        
-        # Check if user is banned
-        if user.is_banned:
-            ban_message = f"Account has been banned"
-            if user.ban_reason:
-                ban_message += f": {user.ban_reason}"
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ban_message
             )
         
         # Check if 2FA is enabled
@@ -435,6 +437,117 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
+        )
+
+
+@router.post("/reactivate", response_model=Token, tags=["Authentication"])
+async def reactivate_account(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
+):
+    """
+    Reactivate a deactivated account and log the user in.
+    
+    Requires:
+    - Valid username + password
+    - 2FA code (if 2FA was enabled before deactivation) via the `scope` field
+    
+    The account must be currently deactivated (is_active = False) and not banned.
+    On success: sets is_active = True, creates a session and returns a JWT token.
+    """
+    try:
+        # Authenticate user
+        user = await auth_service.authenticate_user(db, form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Nom d'utilisateur ou mot de passe incorrect",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Banned users cannot self-reactivate
+        if user.is_banned:
+            ban_message = "Account has been banned"
+            if user.ban_reason:
+                ban_message += f": {user.ban_reason}"
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ban_message
+            )
+        
+        # Account must be deactivated to be reactivated
+        if user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Le compte est déjà actif"
+            )
+        
+        # Check 2FA (preserved from before deactivation)
+        if user.two_factor_enabled:
+            totp_code = form_data.scopes[0] if form_data.scopes else None
+            
+            if not totp_code:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="2FA code required",
+                    headers={"X-2FA-Required": "true"}
+                )
+            
+            from app.services.two_factor_service import two_factor_service
+            
+            is_valid = two_factor_service.verify_totp(user.two_factor_secret, totp_code)
+            if not is_valid:
+                is_valid = two_factor_service.verify_backup_code(user, totp_code)
+                if is_valid:
+                    await db.commit()
+            
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid 2FA code",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        
+        # Reactivate the account
+        user.is_active = True
+        user.last_login = datetime.now(timezone.utc)
+        
+        logger.info(f"Account reactivated by user: {user.username} (ID: {user.id})")
+        
+        # Create session
+        from app.services.session_service import session_service
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        session, jti = await session_service.create_session(
+            db, user, request, access_token_expires
+        )
+        
+        await db.commit()
+        await db.refresh(user)
+        
+        # Create access token
+        access_token = auth_service.create_access_token(
+            data={"sub": user.username},
+            expires_delta=access_token_expires,
+            jti=jti
+        )
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserResponse.model_validate(user),
+            is_first_login=False,
+            suggested_provider=None
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Account reactivation failed: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="La réactivation du compte a échoué"
         )
 
 
@@ -658,94 +771,60 @@ async def update_current_user(
         )
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, tags=["Authentication"])
-async def delete_current_user(
-    delete_request: AccountDeleteRequest,
+@router.put("/me/deactivate", status_code=status.HTTP_200_OK, tags=["Authentication"])
+async def deactivate_current_user(
+    deactivate_request: AccountDeactivateRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Delete current user account permanently
+    Deactivate current user account
     
     Requires:
     - Password verification
-    - Confirmation text: "DELETE MY ACCOUNT"
     
-    This action is irreversible and will:
-    - Delete all user data
-    - Delete all analysis history
-    - Delete all sessions
-    - Delete email provider connections
+    This action will:
+    - Deactivate the account (is_active = False)
+    - Invalidate all active sessions
+    - The account can be reactivated by a SuperAdmin
     """
     try:
         # Verify password
-        if not auth_service.verify_password(delete_request.password, current_user.hashed_password):
+        if not auth_service.verify_password(deactivate_request.password, current_user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect password"
+                detail="Mot de passe incorrect"
             )
         
-        # Verify confirmation text
-        if delete_request.confirmation != "DELETE MY ACCOUNT":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Confirmation text must be exactly 'DELETE MY ACCOUNT'"
-            )
+        # Log the deactivation
+        logger.warning(f"Account deactivation initiated for user: {current_user.username} (ID: {current_user.id})")
+        if deactivate_request.reason:
+            logger.info(f"Deactivation reason: {deactivate_request.reason}")
         
-        # Log the deletion for audit
-        logger.warning(f"Account deletion initiated for user: {current_user.username} (ID: {current_user.id})")
+        # Deactivate the user account
+        current_user.is_active = False
         
-        # Use direct DELETE statements to avoid ORM cascade issues
-        from sqlalchemy import delete
+        # Invalidate all active sessions
         from app.models.session_models import UserSession
-        from app.models.email_provider_models import UserEmailCredential
-        from app.models.database_models import AnalysisHistory
-        from app.models.audit_models import AuditLog
-        
-        user_id = current_user.id
-        
-        # Expunge current_user from session to avoid tracking issues
-        db.expunge(current_user)
-        
-        # Delete all user sessions using direct DELETE
+        from sqlalchemy import update
         await db.execute(
-            delete(UserSession).where(UserSession.user_id == user_id)
-        )
-        
-        # Delete email provider credentials
-        await db.execute(
-            delete(UserEmailCredential).where(UserEmailCredential.user_id == user_id)
-        )
-        
-        # Delete analysis history
-        await db.execute(
-            delete(AnalysisHistory).where(AnalysisHistory.user_id == user_id)
-        )
-        
-        # Delete audit logs where user is actor or target
-        await db.execute(
-            delete(AuditLog).where(
-                (AuditLog.actor_id == user_id) | (AuditLog.target_user_id == user_id)
-            )
-        )
-        
-        # Delete user
-        await db.execute(
-            delete(User).where(User.id == user_id)
+            update(UserSession)
+            .where(UserSession.user_id == current_user.id, UserSession.is_active == True)
+            .values(is_active=False)
         )
         
         await db.commit()
         
-        logger.info(f"Account successfully deleted: {current_user.username}")
+        logger.info(f"Account successfully deactivated: {current_user.username}")
         
-        return None
+        return {"message": "Votre compte a été désactivé avec succès"}
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Account deletion failed: {str(e)}", exc_info=True)
+        logger.error(f"Account deactivation failed: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Account deletion failed"
+            detail="La désactivation du compte a échoué"
         )

@@ -179,16 +179,16 @@ class TwoFactorStatusResponse(BaseModel):
         }
 
 
-class AccountDeleteRequest(BaseModel):
-    """Schema for account deletion request"""
+class AccountDeactivateRequest(BaseModel):
+    """Schema for account deactivation request"""
     password: str
-    confirmation: str = Field(..., pattern="^DELETE MY ACCOUNT$")
+    reason: Optional[str] = Field(None, max_length=500)
     
     class Config:
         json_schema_extra = {
             "example": {
                 "password": "your_current_password",
-                "confirmation": "DELETE MY ACCOUNT"
+                "reason": "Je souhaite faire une pause"
             }
         }
 

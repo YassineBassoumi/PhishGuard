@@ -375,6 +375,96 @@
   transform: none;
 }
 
+/* Deactivation Theme Overrides */
+.deactivation-icon {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%) !important;
+}
+
+.deactivation-warning-box {
+  background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%) !important;
+  border-color: #f6ad55 !important;
+}
+
+.deactivation-warning-box .warning-content > svg {
+  color: #c05621 !important;
+}
+
+.deactivation-warning-box .warning-content h3 {
+  color: #7b341e !important;
+}
+
+.deactivation-warning-box .warning-content p {
+  color: #7b341e !important;
+}
+
+.deactivation-consequences li {
+  color: #7b341e !important;
+}
+
+.deactivation-consequences li::before {
+  content: "\2022" !important;
+  font-size: 1.2rem;
+  color: #c05621;
+}
+
+.btn-show-deactivate {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%) !important;
+}
+
+.btn-show-deactivate:hover {
+  box-shadow: 0 8px 20px rgba(237, 137, 54, 0.4) !important;
+}
+
+.deactivation-form-section {
+  border-color: #f6ad55 !important;
+}
+
+.deactivation-step-number {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%) !important;
+}
+
+.btn-confirm-deactivate {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%) !important;
+}
+
+.btn-confirm-deactivate:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(237, 137, 54, 0.4) !important;
+}
+
+.deactivation-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.modal-deactivate {
+  border-color: #ed8936 !important;
+}
+
+.modal-icon-deactivate {
+  color: #c05621 !important;
+}
+
+.modal-deactivate .modal-header h3 {
+  color: #7b341e !important;
+}
+
+.modal-deactivate .modal-header p {
+  color: #7b341e !important;
+}
+
+.modal-deactivate .modal-header p strong {
+  color: #c05621 !important;
+}
+
+.btn-modal-deactivate {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%) !important;
+}
+
+.btn-modal-deactivate:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(237, 137, 54, 0.4) !important;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .deletion-header {

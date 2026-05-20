@@ -407,40 +407,76 @@ Situés dans `services/email_templates/`:
 ---
 
 ### **two_factor_service.py**
-**Rôle:** Authentification à deux facteurs.
+**Rôle:** Authentification à deux facteurs (TOTP + backup codes).
 
-**Fonctions:**
+**Classe:** `TwoFactorService` (singleton via `two_factor_service`)
 
-1. **`generate_totp_secret()`**
-   - Génère secret TOTP
-   - Base32 encoded
+**Méthodes:**
+
+1. **`generate_secret()`**
+   - Génère secret TOTP base32 aléatoire
+   - Utilise `pyotp.random_base32()`
    - Retourne: secret string
 
-2. **`generate_qr_code(secret, email)`**
-   - Génère QR code
-   - Format: otpauth://totp/...
-   - Retourne: image base64
+2. **`generate_backup_codes(count=8)`**
+   - Génère 8 codes de secours
+   - Format: `XXXX-XXXX` (alphanumérique sans ambiguïté : pas de 0/O/1/I/L)
+   - Charset: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
+   - Retourne: liste de 8 codes
 
-3. **`verify_totp_code(secret, code)`**
-   - Vérifie code 6 chiffres
-   - Fenêtre de tolérance: ±1 période
+3. **`get_totp_uri(secret, username, issuer="PhishGuard")`**
+   - Génère URI `otpauth://totp/...` pour QR code
+   - Retourne: URI string
+
+4. **`generate_qr_code(uri)`**
+   - Génère QR code image
+   - Retourne: `data:image/png;base64,...`
+
+5. **`verify_totp(secret, token)`**
+   - Vérifie code TOTP 6 chiffres
+   - Fenêtre de tolérance: ±1 période (30s)
    - Retourne: bool
 
-4. **`generate_backup_codes(count=10)`**
-   - Génère codes de secours
-   - 10 codes aléatoires
-   - Retourne: liste de codes
+6. **`verify_backup_code(user, code)`**
+   - Normalise le code saisi (supprime tirets/espaces, met en uppercase)
+   - Compare avec les codes stockés (JSON dans `user.backup_codes`)
+   - Si match → supprime le code de la liste (usage unique)
+   - Met à jour `user.backup_codes` en mémoire
+   - Retourne: bool
 
-5. **`enable_2fa(user_id, password, db)`**
-   - Active 2FA pour user
-   - Vérifie mot de passe
-   - Génère secret + QR
-   - Retourne: {secret, qr_code}
+7. **`setup_2fa(user)`**
+   - Génère secret + QR code + 8 backup codes
+   - Stocke `two_factor_secret` et `backup_codes` sur le user
+   - **N'active PAS** encore 2FA (user doit vérifier d'abord)
+   - Retourne: (secret, qr_code, backup_codes)
 
-6. **`disable_2fa(user_id, password, code, db)`**
-   - Désactive 2FA
-   - Vérifie mot de passe + code
-   - Supprime secret
+8. **`enable_2fa(user, token)`**
+   - Vérifie le token TOTP
+   - Si valide → `user.two_factor_enabled = True`
+   - Retourne: bool
+
+9. **`disable_2fa(user, password, auth_service)`**
+   - Vérifie le mot de passe (via `auth_service.verify_password`)
+   - Remet: `two_factor_enabled=False`, `two_factor_secret=None`, `backup_codes=None`
+   - Retourne: bool
+
+10. **`get_remaining_backup_codes(user)`**
+    - Parse le JSON `user.backup_codes`
+    - Retourne: int (nombre de codes restants)
+
+11. **`regenerate_backup_codes(user)`**
+    - Génère 8 nouveaux codes
+    - Remplace les anciens (tous invalidés)
+    - Retourne: liste de codes
+
+**Flow au login avec backup code :**
+```
+1. Backend reçoit le code depuis form_data.scopes[0]
+2. Essai verify_totp() → échoue (code n'est pas 6 chiffres)
+3. Essai verify_backup_code() → normalise, compare
+4. Si match → code supprimé, db.commit(), login OK
+5. Si pas match → 401 "Invalid 2FA code"
+```
 
 ---
 

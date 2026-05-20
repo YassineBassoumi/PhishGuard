@@ -16,8 +16,10 @@
 
 2. **POST `/api/auth/login`**
    - Connexion utilisateur
-   - Body: `{email, password}`
-   - Vérifie: email vérifié, compte non banni
+   - Body (form-data): `{username, password, scope?}`
+   - Vérifie: email vérifié, compte non banni, compte actif
+   - Si compte désactivé (`is_active=False`) → **403** avec `detail: "ACCOUNT_DEACTIVATED"`
+   - Si 2FA activé → exige code TOTP ou backup code dans le champ `scope`
    - Crée session avec géolocalisation
    - Détecte première connexion
    - Retourne: token JWT + user data
@@ -38,11 +40,30 @@
    - Vérifie ancien mot de passe
    - Envoie notification email
 
+6. **PUT `/api/auth/me/deactivate`**
+   - Désactivation réversible du compte
+   - Body: `{password, reason?}` (raison optionnelle, max 500 chars)
+   - Vérifie le mot de passe
+   - Met `is_active = False`
+   - Révoque toutes les sessions actives
+   - Retourne: confirmation de désactivation
+   - **Réversible** : le compte n'est pas supprimé, il peut être réactivé
+
+7. **POST `/api/auth/reactivate`**
+   - Réactivation d'un compte désactivé
+   - Body (form-data): `{username, password, scope?}`
+   - Vérifie les credentials (password + 2FA si activé)
+   - Remet `is_active = True`
+   - Crée une nouvelle session
+   - Retourne: token JWT + user data (comme un login normal)
+   - **Note** : accessible uniquement si le compte est désactivé
+
 **Sécurité:**
 - Rate limiting: 5 tentatives/minute
 - Hachage bcrypt des mots de passe
 - JWT avec expiration (30 min)
 - Détection brute force
+- Désactivation réversible (pas de perte de données)
 
 ---
 
@@ -231,39 +252,67 @@
 ### **two_factor.py**
 **Rôle:** Authentification à deux facteurs (2FA).
 
-**Endpoints:**
+**Endpoints (préfixe `/api/2fa`):**
 
-1. **POST `/api/2fa/enable`**
-   - Active 2FA pour l'utilisateur
-   - Génère secret TOTP
-   - Retourne: QR code + secret
-   - Body: `{password}` (confirmation)
+1. **GET `/api/2fa/status`**
+   - Récupère le statut 2FA de l'utilisateur
+   - Retourne: `{enabled: bool, backup_codes_remaining: int}`
 
-2. **POST `/api/2fa/verify`**
-   - Vérifie code 2FA
-   - Body: `{code}` (6 chiffres)
-   - Active définitivement 2FA
-   - Génère codes de secours
+2. **POST `/api/2fa/setup`**
+   - Initie la configuration 2FA
+   - Génère secret TOTP + QR code + 8 codes de secours
+   - Stocke le secret et les codes en base (2FA pas encore activé)
+   - Retourne: `{secret, qr_code, backup_codes}`
+   - ⚠️ Ne pas appeler si 2FA déjà activé
 
-3. **POST `/api/2fa/disable`**
+3. **POST `/api/2fa/enable`**
+   - Active définitivement 2FA après vérification
+   - Body: `{token}` (code 6 chiffres depuis l'app authenticator)
+   - Vérifie le token TOTP contre le secret stocké
+   - Si valide → `two_factor_enabled = True`
+   - Envoie notification email "2FA Enabled"
+
+4. **POST `/api/2fa/disable`**
    - Désactive 2FA
-   - Body: `{password, code}`
-   - Vérifie mot de passe + code 2FA
-
-4. **GET `/api/2fa/backup-codes`**
-   - Récupère codes de secours
-   - Nécessite: 2FA activé
-   - Retourne: liste de codes
-
-5. **POST `/api/2fa/regenerate-backup-codes`**
-   - Régénère codes de secours
-   - Invalide anciens codes
    - Body: `{password}`
+   - Vérifie le mot de passe uniquement
+   - Efface secret et codes de secours
+   - Envoie notification email "2FA Disabled"
+
+5. **POST `/api/2fa/verify`**
+   - Vérifie un token TOTP (pour test)
+   - Body: `{token}` (6 chiffres)
+   - Nécessite: 2FA activé
+   - Retourne: `{valid: bool, message}`
+
+6. **POST `/api/2fa/regenerate-backup-codes`**
+   - Régénère 8 nouveaux codes de secours
+   - Invalide tous les anciens codes
+   - Nécessite: 2FA activé
+   - Retourne: `{backup_codes: [...]}`
 
 **Technologie:**
-- TOTP (Time-based One-Time Password)
-- Compatible Google Authenticator, Authy
-- Codes de secours pour récupération
+- TOTP (Time-based One-Time Password, RFC 6238)
+- Compatible Google Authenticator, Authy, Microsoft Authenticator
+- 8 codes de secours (format `XXXX-XXXX`, alphanumériques sans ambiguïté)
+- Chaque code de secours est à usage unique
+- Codes normalisés à la vérification (insensible à la casse, tirets/espaces ignorés)
+
+**Flow complet d'activation :**
+```
+1. POST /setup  → QR code + secret + 8 backup codes
+2. User scanne QR code dans Google Authenticator
+3. POST /enable {token: "123456"}  → 2FA activé
+```
+
+**Utilisation des backup codes au login :**
+```
+1. POST /auth/login {username, password, scope: "ABCD-1234"}
+2. Backend essaie TOTP → échoue
+3. Backend essaie backup code → match
+4. Code consommé (supprimé de la liste)
+5. Login réussi
+```
 
 ---
 

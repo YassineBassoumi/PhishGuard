@@ -121,10 +121,10 @@ const UserProfile = () => {
     },
     {
       id: 'danger',
-      label: 'Zone Dangereuse',
+      label: 'Désactivation',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" strokeWidth="2"/>
+          <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64M12 2v10" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       )
     }

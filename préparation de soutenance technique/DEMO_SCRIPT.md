@@ -45,8 +45,9 @@
 | 4 | Analyse en masse | 1 min | Démontrer la scalabilité |
 | 5 | Connexion Gmail OAuth | 1 min | Montrer l'intégration provider |
 | 6 | Dashboard + historique | 30 s | Montrer la persistance et les stats |
-| 7 | 2FA + sessions | 30 s | Montrer la sécurité |
-| 8 | Panneau admin (rapide) | 1 min | Montrer la dimension multi-rôle |
+| 7 | 2FA + backup codes + sessions | 30 s | Montrer la sécurité |
+| 8 | Désactivation/Réactivation | 45 s | Montrer la gestion réversible du compte |
+| 9 | Panneau admin (rapide) | 1 min | Montrer la dimension multi-rôle |
 
 ---
 
@@ -155,19 +156,35 @@
 
 ---
 
-### Étape 7 — 2FA et sessions (30 s)
+### Étape 7 — 2FA, backup codes et sessions (30 s)
 
-> **À dire** : *« Côté sécurité utilisateur : 2FA TOTP optionnel compatible Google Authenticator, et gestion des sessions actives avec géolocalisation IP. »*
+> **À dire** : *« Côté sécurité utilisateur : 2FA TOTP optionnel compatible Google Authenticator, avec 8 codes de secours au format XXXX-XXXX utilisables en cas de perte du téléphone. Et gestion des sessions actives avec géolocalisation IP. »*
 
 **Actions** :
 1. Onglet **Paramètres**
-2. Section **2FA** : montrer que c'est activé + bouton de régénération des codes de secours
-3. Section **Sessions actives** : montrer les sessions avec device, IP, localisation, dernière activité
-4. Démontrer **Révoquer toutes les sessions sauf l'actuelle** (sans cliquer si on ne veut pas se déconnecter)
+2. Section **2FA** : montrer que c'est activé + nombre de codes de secours restants
+3. Mentionner : *« Chaque code de secours est à usage unique, et on peut les régénérer si besoin »*
+4. Section **Sessions actives** : montrer les sessions avec device, IP, localisation, dernière activité
+5. Démontrer **Révoquer toutes les sessions sauf l'actuelle** (sans cliquer si on ne veut pas se déconnecter)
 
 ---
 
-### Étape 8 — Panneau admin (1 min)
+### Étape 8 — Désactivation / Réactivation de compte (45 s) *(optionnel)*
+
+> **À dire** : *« Le compte peut être désactivé de manière réversible. Si l'utilisateur se reconnecte, une modal lui propose de réactiver son compte immédiatement. »*
+
+**Actions** :
+1. Onglet **Paramètres** → onglet **Désactivation**
+2. Montrer l'UI ambre/orange et les avertissements
+3. *(Si on veut démontrer live)* : saisir le mot de passe → confirmer → déconnecté
+4. Se reconnecter → modal de réactivation s'affiche → confirmer → retour au dashboard
+5. Mentionner : *« Aucune donnée n'est supprimée, c'est un choix professionnel pour éviter les pertes accidentelles »*
+
+> ⚠️ **Si le temps est court** : montrer seulement l'UI de désactivation sans exécuter, et passer au panel admin.
+
+---
+
+### Étape 9 — Panneau admin (1 min)
 
 > **À dire** : *« Enfin, le projet inclut un panneau d'administration accessible aux superadmins. »*
 

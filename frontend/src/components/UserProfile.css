@@ -182,13 +182,13 @@
 }
 
 .tab-button.danger-tab:hover {
-  background: rgba(245, 101, 101, 0.05);
-  color: #f56565;
+  background: rgba(237, 137, 54, 0.05);
+  color: #ed8936;
 }
 
 .tab-button.danger-tab.active {
-  color: #f56565;
-  border-bottom-color: #f56565;
+  color: #ed8936;
+  border-bottom-color: #ed8936;
 }
 
 /* Tab Content */

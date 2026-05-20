@@ -53,7 +53,7 @@
 | Accuracy modèle email | **97,5 %** (LinearSVC + TF-IDF, 19 741 emails) |
 | Accuracy modèle URL | **94,6 %** (Random Forest, 23 features, 822 K URLs) |
 | Providers email intégrés | **2** (Gmail + Outlook via OAuth 2.0) |
-| Méthodes de protection | JWT, bcrypt, 2FA TOTP, rate limiting, CORS, audit logs |
+| Méthodes de protection | JWT, bcrypt, 2FA TOTP + backup codes, rate limiting, CORS, audit logs, désactivation réversible |
 | Composants React | 50+ |
 | Pages distinctes (UI) | 10+ |
 

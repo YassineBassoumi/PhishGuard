@@ -8,6 +8,8 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [show2FA, setShow2FA] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,6 +48,13 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
       // Check if 2FA is required
       if (response.status === 403) {
         const errorData = await response.json();
+        
+        // Check if account is deactivated - offer reactivation
+        if (errorData.detail === 'ACCOUNT_DEACTIVATED' || response.headers.get('X-Reactivation-Required') === 'true') {
+          setShowReactivateModal(true);
+          setLoading(false);
+          return;
+        }
         
         // Check if it's email verification issue
         if (errorData.detail && errorData.detail.includes('Email non vérifié')) {
@@ -95,6 +104,66 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
       setError('Erreur de connexion au serveur');
       setLoading(false);
     }
+  };
+
+  const handleReactivate = async () => {
+    setReactivating(true);
+    setError('');
+
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+      if (twoFactorCode) {
+        formData.append('scope', twoFactorCode);
+      }
+
+      const response = await fetch('http://localhost:8000/api/auth/reactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData
+      });
+
+      if (response.status === 403) {
+        const errorData = await response.json();
+        if (errorData.detail === '2FA code required' || response.headers.get('X-2FA-Required') === 'true') {
+          setShowReactivateModal(false);
+          setShow2FA(true);
+          setError('Veuillez entrer votre code 2FA pour réactiver votre compte');
+          setReactivating(false);
+          return;
+        }
+        setError(errorData.detail || 'Réactivation refusée');
+        setShowReactivateModal(false);
+        setReactivating(false);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Échec de la réactivation');
+        setShowReactivateModal(false);
+        setReactivating(false);
+        return;
+      }
+
+      const data = await response.json();
+      localStorage.setItem('auth_token', data.access_token);
+      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      window.location.reload();
+    } catch (err) {
+      console.error('Reactivation error:', err);
+      setError('Erreur de connexion au serveur');
+      setShowReactivateModal(false);
+      setReactivating(false);
+    }
+  };
+
+  const handleCancelReactivate = () => {
+    setShowReactivateModal(false);
+    setError('Votre compte est désactivé.');
   };
 
   return (
@@ -174,7 +243,7 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
                 type="text"
                 className="input"
                 placeholder="000000"
-                maxLength="8"
+                maxLength="9"
                 value={twoFactorCode}
                 onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^A-Z0-9-]/gi, ''))}
                 disabled={loading}
@@ -182,7 +251,7 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
                 style={{ letterSpacing: '0.3rem', textAlign: 'center', fontWeight: '600' }}
               />
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                Entrez le code de votre application d'authentification ou un code de secours
+                Entrez le code à 6 chiffres de votre app, ou un code de secours (XXXX-XXXX)
               </p>
             </div>
           )}
@@ -224,6 +293,45 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
           </p>
         </div>
       </div>
+
+      {/* Reactivation Modal */}
+      {showReactivateModal && (
+        <div className="modal-overlay" onClick={() => !reactivating && handleCancelReactivate()}>
+          <div
+            className="modal-content modal-danger modal-deactivate"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 500 }}
+          >
+            <div className="modal-header">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="modal-icon-danger modal-icon-deactivate">
+                <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64M12 2v10" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <h3>Compte désactivé</h3>
+              <p>
+                Votre compte est actuellement désactivé.
+                <br />
+                <strong>Souhaitez-vous le réactiver et vous connecter ?</strong>
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn-modal-cancel"
+                onClick={handleCancelReactivate}
+                disabled={reactivating}
+              >
+                Non, annuler
+              </button>
+              <button
+                className="btn-modal-danger btn-modal-deactivate"
+                onClick={handleReactivate}
+                disabled={reactivating}
+              >
+                {reactivating ? 'Réactivation...' : 'Oui, réactiver mon compte'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

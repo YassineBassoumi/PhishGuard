@@ -9,20 +9,27 @@
 
 **Champs:**
 ```python
-- id: UUID (clé primaire)
+- id: Integer (clé primaire, auto-increment)
 - username: String (unique)
 - email: String (unique, indexé)
 - hashed_password: String
-- is_active: Boolean (compte actif)
-- is_email_verified: Boolean
+- is_active: Boolean (compte actif — False si désactivé)
+- is_banned: Boolean
+- banned_at: DateTime (nullable)
+- banned_by: Integer (FK → users, nullable)
+- ban_reason: String(500) (nullable)
+- email_verified: Boolean
 - is_first_login: Boolean
 - role: Enum (user/admin/superadmin)
-- is_banned: Boolean
-- ban_reason: String (nullable)
-- profile_picture: String (nom fichier)
+- profile_picture: String (nom fichier, nullable)
+- last_login: DateTime (nullable)
 - created_at: DateTime
 - updated_at: DateTime
-- last_login: DateTime
+
+# Champs 2FA
+- two_factor_enabled: Boolean (default False)
+- two_factor_secret: String(32) (nullable — secret TOTP base32)
+- backup_codes: String (nullable — JSON array de codes XXXX-XXXX)
 ```
 
 **Relations:**
@@ -269,6 +276,19 @@ class UserResponse(BaseModel):
     role: str
     is_email_verified: bool
     profile_picture: Optional[str]
+
+class AccountDeactivateRequest(BaseModel):
+    password: str
+    reason: Optional[str] = Field(None, max_length=500)
+
+class TwoFactorSetupResponse(BaseModel):
+    secret: str
+    qr_code: str        # data:image/png;base64,...
+    backup_codes: list[str]  # 8 codes format XXXX-XXXX
+
+class TwoFactorStatusResponse(BaseModel):
+    enabled: bool
+    backup_codes_remaining: int
 ```
 
 ---

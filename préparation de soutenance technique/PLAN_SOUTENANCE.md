@@ -68,13 +68,14 @@
 - Schéma haut niveau (cf. ARCHITECTURE_DIAGRAMS.md § 1)
 
 #### Slide 7 — Fonctionnalités-clés (1 min 15 s)
-6 fonctionnalités majeures en cards :
+7 fonctionnalités majeures en cards :
 1. 🔍 Analyse instantanée d'emails et URLs
 2. 📧 Connexion Gmail / Outlook (OAuth 2.0)
 3. 📊 Tableau de bord + historique
-4. 🔐 Authentification + 2FA TOTP
-5. 👤 Gestion de profil et sessions
+4. 🔐 Authentification + 2FA TOTP + codes de secours
+5. 👤 Gestion de profil, sessions et désactivation réversible
 6. 👑 Panneau d'administration
+7. 🔄 Désactivation/réactivation de compte (style Facebook)
 
 > *« PhishGuard couvre l'ensemble du parcours utilisateur, de l'inscription au panel admin, en passant par la connexion à sa boîte Gmail. »*
 

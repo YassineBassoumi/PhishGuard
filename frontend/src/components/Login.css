@@ -371,3 +371,144 @@
 }
 
 /* Remove scrollbar styles since we removed overflow */
+
+/* === Reactivation Modal (for deactivated accounts) === */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content.modal-danger {
+  background: white;
+  border-radius: 20px;
+  padding: 2.5rem;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s ease;
+  border: 3px solid #ed8936;
+}
+
+.modal-content.modal-deactivate {
+  border-color: #ed8936;
+}
+
+.modal-header {
+  text-align: center;
+}
+
+.modal-icon-danger {
+  margin-bottom: 1rem;
+  stroke-width: 2;
+}
+
+.modal-icon-deactivate {
+  color: #c05621;
+}
+
+.modal-header h3 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #7b341e;
+  margin: 0 0 1rem 0;
+}
+
+.modal-header p {
+  font-size: 1rem;
+  color: #7b341e;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.modal-header p strong {
+  font-weight: 700;
+  color: #c05621;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.btn-modal-cancel,
+.btn-modal-danger {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-modal-cancel {
+  background: #f7fafc;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+}
+
+.btn-modal-cancel:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+}
+
+.btn-modal-danger {
+  background: linear-gradient(135deg, #ed8936 0%, #c05621 100%);
+  color: white;
+}
+
+.btn-modal-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(237, 137, 54, 0.4);
+}
+
+.btn-modal-cancel:disabled,
+.btn-modal-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-content.modal-danger {
+    padding: 2rem;
+    max-width: 95%;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .btn-modal-cancel,
+  .btn-modal-danger {
+    width: 100%;
+  }
+}

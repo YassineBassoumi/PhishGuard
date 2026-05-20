@@ -312,6 +312,70 @@ python scripts/setup.py
 
 ---
 
+### **setup_test_user.py**
+**Rôle:** Créer ou réinitialiser un utilisateur de test.
+
+**Usage:**
+```bash
+python scripts/setup_test_user.py
+```
+
+**Fonctionnalité:**
+```python
+- Crée un user "phishguard_test_user" (ou le réinitialise)
+- Email vérifié, actif, non banni
+- 2FA désactivé
+- Mot de passe connu: TestPass123!
+- Prêt pour les tests E2E
+```
+
+---
+
+### **test_deactivation_flow.py**
+**Rôle:** Test E2E du flux désactivation/réactivation.
+
+**Usage:**
+```bash
+python scripts/test_deactivation_flow.py <username> <password>
+```
+
+**Scénarios testés:**
+```
+1. Login normal → OK
+2. Désactivation du compte (PUT /me/deactivate) → 200
+3. Tentative de login → 403 ACCOUNT_DEACTIVATED
+4. Réactivation (POST /reactivate) → 200 + nouveau token
+5. Login normal après réactivation → OK
+```
+
+---
+
+### **test_backup_codes.py**
+**Rôle:** Test E2E des backup codes 2FA.
+
+**Usage:**
+```bash
+python scripts/test_backup_codes.py <username> <password>
+```
+
+**Scénarios testés (10 étapes):**
+```
+1. Login normal (2FA off)
+2. Setup 2FA (récupère secret + backup codes)
+3. Enable 2FA avec code TOTP valide
+4. Login sans code 2FA → 403 "2FA code required"
+5. Login avec mauvais code → 401
+6. Login avec backup code (avec tiret) → 200
+7. Vérifier que le code est consommé (count - 1)
+8. Même backup code → 401 (déjà utilisé)
+9. Login avec 2ème backup code (sans tiret) → 200
+10. Disable 2FA (cleanup)
+```
+
+**Prérequis:** Backend running, user existant, 2FA off
+
+---
+
 ### **cleanup_orphaned_pictures.py**
 **Rôle:** Nettoyer les photos de profil orphelines.
 

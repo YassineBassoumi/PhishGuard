@@ -168,10 +168,13 @@ const { connectedProviders, fetchEmails } = useEmailProvider();
 ### **Composants d'Authentification**
 
 #### **Login.jsx**
-**Rôle:** Formulaire de connexion.
+**Rôle:** Formulaire de connexion avec support 2FA et réactivation de compte.
 
 **Fonctionnalités:**
-- Champs email et mot de passe
+- Champs username et mot de passe
+- Support 2FA : champ code TOTP ou backup code (format `XXXX-XXXX`)
+- Détection compte désactivé (`ACCOUNT_DEACTIVATED`) → affiche modal de réactivation
+- Modal de réactivation : confirmation en 1 clic, réutilise les credentials saisis
 - Validation des entrées
 - Gestion des erreurs
 - Lien vers inscription et mot de passe oublié
@@ -470,7 +473,7 @@ const { connectedProviders, fetchEmails } = useEmailProvider();
   - Changement de mot de passe
   - Authentification 2FA
   - Sessions actives
-- Suppression de compte
+- Désactivation de compte (onglet "Désactivation" avec thème ambre)
 
 **Utilisation:** Page "Paramètres"
 
@@ -493,11 +496,14 @@ const { connectedProviders, fetchEmails } = useEmailProvider();
 **Rôle:** Configuration de l'authentification à deux facteurs.
 
 **Fonctionnalités:**
-- Activation/désactivation 2FA
-- Génération QR code
-- Saisie code de vérification
-- Codes de secours
-- Instructions détaillées
+- Activation 2FA en 3 étapes : scan QR → saisie code → sauvegarde backup codes
+- Désactivation 2FA (mot de passe requis)
+- Génération QR code scannable par Google Authenticator / Authy
+- Saisie manuelle du secret (fallback)
+- 8 codes de secours (format `XXXX-XXXX`, téléchargeables en `.txt`)
+- Compteur de codes restants avec warning si < 3
+- Régénération des codes de secours
+- Instructions détaillées en français
 
 ---
 
@@ -517,14 +523,16 @@ const { connectedProviders, fetchEmails } = useEmailProvider();
 ---
 
 #### **AccountDeletion.jsx**
-**Rôle:** Suppression du compte utilisateur.
+**Rôle:** Désactivation réversible du compte utilisateur.
 
 **Fonctionnalités:**
-- Avertissements
+- Avertissements avec thème ambre/orange (différencié de la suppression)
 - Confirmation par mot de passe
-- Double confirmation
-- Suppression définitive
+- Raison optionnelle de désactivation
+- Désactivation réversible (pas de suppression de données)
+- Déconnexion automatique après désactivation
 - Feedback utilisateur
+- **Note :** le compte peut être réactivé en se reconnectant (modal dans Login.jsx)
 
 ---
 
