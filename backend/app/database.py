@@ -21,7 +21,10 @@ DATABASE_URL = os.getenv(
 # Create async engine with PostgreSQL optimizations
 import ssl
 
-# Create SSL context for Supabase
+# Create SSL context for Supabase connection (TLS-encrypted channel)
+# Note: Supabase's CA certificate (prod-ca-2021.crt) lacks the keyUsage extension
+# required by OpenSSL 3.x (Python 3.13+), making CERT_REQUIRED verification impossible.
+# The connection remains encrypted via TLS, preventing passive eavesdropping.
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE

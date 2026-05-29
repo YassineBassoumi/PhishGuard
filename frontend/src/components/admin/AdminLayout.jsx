@@ -60,7 +60,7 @@ export function AdminLayout({ children, currentView, onViewChange, user, onLogou
         <div style={{ display: 'flex', height: '64px', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid #e5e7eb', background: 'linear-gradient(to right, #9333ea, #4f46e5)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Shield style={{ height: '28px', width: '28px', color: 'white' }} />
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', margin: 0 }}>Panneau Admin</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', margin: 0 }}>Panneau Administrateur</h2>
           </div>
           <button 
             onClick={() => setSidebarOpen(false)}
@@ -192,7 +192,7 @@ export function AdminLayout({ children, currentView, onViewChange, user, onLogou
       }}>
         <div style={{ display: 'flex', height: '64px', alignItems: 'center', padding: '0 24px', borderBottom: '1px solid #e5e7eb', background: 'linear-gradient(to right, #9333ea, #4f46e5)', flexShrink: 0 }}>
           <Shield style={{ height: '32px', width: '32px', color: 'white' }} />
-          <h2 style={{ marginLeft: '12px', fontSize: '20px', fontWeight: 'bold', color: 'white', margin: '0 0 0 12px' }}>Panneau Admin</h2>
+          <h2 style={{ marginLeft: '12px', fontSize: '20px', fontWeight: 'bold', color: 'white', margin: '0 0 0 12px' }}>Panneau Administrateur</h2>
         </div>
         <nav style={{ flex: 1, padding: '16px 12px', overflowY: 'auto' }}>
           {navigation.map((item) => (
@@ -320,7 +320,9 @@ export function AdminLayout({ children, currentView, onViewChange, user, onLogou
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#f9fafb', borderRadius: '12px', padding: '8px 16px', border: '1px solid #e5e7eb' }}>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: '14px', fontWeight: '600', color: '#111827', margin: 0 }}>{user?.username}</p>
-                <p style={{ fontSize: '12px', color: '#9333ea', fontWeight: '500', margin: 0 }}>{user?.role}</p>
+                <p style={{ fontSize: '12px', color: '#9333ea', fontWeight: '500', margin: 0 }}>
+                  {user?.role === 'SUPERADMIN' ? 'Super Administrateur' : user?.role === 'ADMIN' ? 'Administrateur' : user?.role}
+                </p>
               </div>
               <div style={{ height: '40px', width: '40px', borderRadius: '50%', background: user?.profile_picture ? 'transparent' : 'linear-gradient(to bottom right, #9333ea, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', overflow: 'hidden' }}>
                 {user?.profile_picture ? (

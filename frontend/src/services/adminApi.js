@@ -10,7 +10,18 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
+// Request interceptor: always inject the latest token from localStorage.
+// This avoids race conditions where API calls fire before setAuthToken runs
+// (e.g. child useEffect runs before parent useEffect).
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Kept for backward compatibility (no-op when interceptor is present)
 export const setAuthToken = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;

@@ -2,6 +2,7 @@
 Email service for sending emails
 """
 
+import asyncio
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -62,17 +63,22 @@ class EmailService:
             part2 = MIMEText(html_content, "html")
             message.attach(part2)
             
-            # Send email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                server.send_message(message)
+            # Send email (run in thread pool to avoid blocking the event loop)
+            def _send_sync():
+                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                    server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(message)
+                return True
+            
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _send_sync)
             
             logger.info(f"Email sent successfully to {to_email}")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {str(e)}")
+            logger.error(f"Failed to send email to {to_email}: {str(e)}", exc_info=True)
             return False
     
     async def send_password_reset_email(

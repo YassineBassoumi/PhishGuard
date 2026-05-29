@@ -165,16 +165,27 @@ class UnifiedEmailService:
             credentials = await self.get_user_credentials(db, user_id, provider)
             if not credentials:
                 raise ValueError(f"No credentials found for provider {provider}")
-            
+
             # Check if token is expired and refresh if needed
             credentials = await self._ensure_valid_token(db, user_id, provider, credentials)
-            
+
             # Get provider service
             service = self.get_provider_service(provider)
-            
-            # Fetch emails
-            emails = service.list_emails(credentials, max_results)
-            
+
+            # Fetch emails (with one forced refresh retry on token rejection)
+            try:
+                emails = service.list_emails(credentials, max_results)
+            except Exception as first_err:
+                error_str = str(first_err)
+                if 'token expired' in error_str.lower() or '401' in error_str:
+                    logger.warning(f"Token rejected by {provider}, forcing refresh...")
+                    credentials = await self._ensure_valid_token(
+                        db, user_id, provider, credentials, force=True
+                    )
+                    emails = service.list_emails(credentials, max_results)
+                else:
+                    raise
+
             return {
                 'success': True,
                 'provider': provider.value,
@@ -240,47 +251,56 @@ class UnifiedEmailService:
         db: AsyncSession,
         user_id: int,
         provider: EmailProvider,
-        credentials: Dict
+        credentials: Dict,
+        force: bool = False
     ) -> Dict:
         """
         Check if token is expired and refresh if needed
-        
+
         Args:
             db: Database session
             user_id: User ID
             provider: Email provider
             credentials: Current credentials dictionary
-            
+            force: If True, always refresh regardless of expiry
+
         Returns:
             Updated credentials with fresh token
         """
         try:
             from datetime import datetime, timedelta, timezone
-            
-            # Check if token_expiry exists and is expired
-            token_expiry = credentials.get('token_expiry')
-            
-            if not token_expiry:
-                # No expiry info, assume token is valid
-                logger.warning(f"No token expiry info for {provider}, assuming valid")
-                return credentials
-            
-            # Parse token_expiry if it's a string
-            if isinstance(token_expiry, str):
-                try:
-                    token_expiry = datetime.fromisoformat(token_expiry.replace('Z', '+00:00'))
-                except:
-                    logger.warning(f"Could not parse token_expiry: {token_expiry}")
+
+            if force:
+                logger.info(f"Force-refreshing token for {provider}")
+            else:
+                # Check if token_expiry exists and is expired
+                token_expiry = credentials.get('token_expiry')
+
+                if not token_expiry:
+                    # No expiry info, assume token is valid
+                    logger.warning(f"No token expiry info for {provider}, assuming valid")
                     return credentials
-            
-            # Check if token is expired or will expire in next 5 minutes
-            now = datetime.now(timezone.utc)
-            buffer = timedelta(minutes=5)
-            
-            if token_expiry > now + buffer:
-                # Token is still valid
-                logger.debug(f"Token for {provider} is still valid until {token_expiry}")
-                return credentials
+
+                # Parse token_expiry if it's a string
+                if isinstance(token_expiry, str):
+                    try:
+                        token_expiry = datetime.fromisoformat(token_expiry.replace('Z', '+00:00'))
+                    except:
+                        logger.warning(f"Could not parse token_expiry: {token_expiry}")
+                        return credentials
+
+                # Ensure token_expiry is timezone-aware (assume UTC if naive)
+                if token_expiry.tzinfo is None:
+                    token_expiry = token_expiry.replace(tzinfo=timezone.utc)
+
+                # Check if token is expired or will expire in next 5 minutes
+                now = datetime.now(timezone.utc)
+                buffer = timedelta(minutes=5)
+
+                if token_expiry > now + buffer:
+                    # Token is still valid
+                    logger.debug(f"Token for {provider} is still valid until {token_expiry}")
+                    return credentials
             
             # Token is expired or about to expire, refresh it
             logger.info(f"Token for {provider} expired or expiring soon, refreshing...")
@@ -335,14 +355,9 @@ class UnifiedEmailService:
             credential_record = result.scalar_one_or_none()
             
             if credential_record:
-                import json
-                
-                # Convert datetime to ISO format string for JSON serialization
-                credentials_to_save = credentials.copy()
-                if 'token_expiry' in credentials_to_save and isinstance(credentials_to_save['token_expiry'], datetime):
-                    credentials_to_save['token_expiry'] = credentials_to_save['token_expiry'].isoformat()
-                
-                credential_record.credentials = json.dumps(credentials_to_save)
+                # Persist refreshed token fields to the actual DB columns
+                credential_record.access_token = credentials['token']
+                credential_record.refresh_token = credentials['refresh_token']
                 credential_record.token_expiry = credentials['token_expiry']
                 await db.commit()
                 logger.info(f"Successfully refreshed and saved token for {provider}")

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+import asyncio
 from datetime import timedelta, datetime, timezone
 import logging
 
@@ -22,6 +23,7 @@ from app.services.auth_service import (
 )
 from app.database import get_db
 from app.services.notification_service import notification_service
+from app.utils.geolocation import get_location_from_ip
 from jose import jwt, JWTError
 
 router = APIRouter()
@@ -672,16 +674,11 @@ async def update_current_user(
             # Send password changed notification (async, don't wait)
             # Note: We don't pass db session to background task - it will create its own
             try:
-                import asyncio
-                from app.database import get_db
-                from app.utils.geolocation import get_location_from_ip
-                
                 async def send_notification_background():
                     """Background task to send notification with its own DB session"""
                     async for notification_db in get_db():
                         try:
                             # Fetch fresh user object in this session
-                            from sqlalchemy import select
                             result = await notification_db.execute(
                                 select(User).where(User.id == user_id)
                             )
@@ -699,6 +696,8 @@ async def update_current_user(
                                     'location': location
                                 }
                             )
+                        except Exception as e:
+                            logger.error(f"Background password change notification failed: {str(e)}", exc_info=True)
                         finally:
                             await notification_db.close()
                         break
@@ -708,6 +707,7 @@ async def update_current_user(
                 logger.error(f"Failed to queue password change notification: {str(e)}")
 
         # ── Email changed notification ──
+        email_change_task = None
         if old_email:
             try:
                 # Reuse the same IP extraction logic
@@ -726,7 +726,6 @@ async def update_current_user(
                 async def send_email_change_notification_background():
                     async for notification_db in get_db():
                         try:
-                            from sqlalchemy import select
                             result = await notification_db.execute(
                                 select(User).where(User.id == email_user_id)
                             )
@@ -745,16 +744,25 @@ async def update_current_user(
                                     'location': location,
                                 }
                             )
+                        except Exception as e:
+                            logger.error(f"Background email change notification failed: {str(e)}", exc_info=True)
                         finally:
                             await notification_db.close()
                         break
 
-                asyncio.create_task(send_email_change_notification_background())
+                email_change_task = send_email_change_notification_background
             except Exception as e:
-                logger.error(f"Failed to queue email change notification: {str(e)}")
+                logger.error(f"Failed to prepare email change notification: {str(e)}")
 
         await db.commit()
         await db.refresh(current_user)
+
+        # Start background task AFTER commit so DB reflects the new email
+        if email_change_task:
+            try:
+                asyncio.create_task(email_change_task())
+            except Exception as e:
+                logger.error(f"Failed to queue email change notification: {str(e)}")
         
         logger.info(f"User updated: {current_user.username}")
         

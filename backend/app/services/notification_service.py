@@ -350,21 +350,27 @@ class NotificationService:
                 'secure_url': f"{self.frontend_url}/settings?action=secure"
             }
 
-            template = jinja_env.get_template('email_changed_alert.html')
-            html_content = template.render(**template_data)
+            # Render security alert for OLD email (fraud warning)
+            alert_template = jinja_env.get_template('email_changed_alert.html')
+            alert_html = alert_template.render(**template_data)
+            alert_subject = "⚠️ Your PhishGuard Account Email Was Changed"
 
-            subject = "⚠️ Your PhishGuard Account Email Was Changed"
+            # Render confirmation for NEW email (friendly receipt)
+            confirm_template = jinja_env.get_template('email_changed_confirmation.html')
+            confirm_html = confirm_template.render(**template_data)
+            confirm_subject = "✅ Your PhishGuard Email Has Been Updated"
 
-            # Send to BOTH addresses so the legitimate owner is warned even if attacker swapped the email
+            # Send security alert to OLD address so the legitimate owner is warned if hijacked
             success_old = await email_service.send_email(
                 to_email=old_email,
-                subject=subject,
-                html_content=html_content
+                subject=alert_subject,
+                html_content=alert_html
             )
+            # Send confirmation to NEW address
             success_new = await email_service.send_email(
                 to_email=new_email,
-                subject=subject,
-                html_content=html_content
+                subject=confirm_subject,
+                html_content=confirm_html
             )
 
             success = success_old or success_new

@@ -136,6 +136,7 @@ body {
   background-clip: text;
   font-weight: 700;
   position: relative;
+  text-transform: capitalize;
 }
 
 .main-greeting .wave-emoji {

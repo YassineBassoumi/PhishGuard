@@ -893,10 +893,13 @@ async def get_all_email_connections(
             user = user_result.scalar_one_or_none()
             
             if user:
-                # Check if token is expired
+                # Check if token is expired (normalize naive DB datetimes to UTC)
                 is_expired = False
                 if conn.token_expiry:
-                    is_expired = conn.token_expiry < datetime.now(timezone.utc)
+                    expiry = conn.token_expiry
+                    if expiry.tzinfo is None:
+                        expiry = expiry.replace(tzinfo=timezone.utc)
+                    is_expired = expiry < datetime.now(timezone.utc)
                 
                 response.append({
                     "id": conn.id,
@@ -1117,10 +1120,13 @@ async def get_user_email_connections(
         # Format response
         response = []
         for conn in connections:
-            # Check if token is expired
+            # Check if token is expired (normalize naive DB datetimes to UTC)
             is_expired = False
             if conn.token_expiry:
-                is_expired = conn.token_expiry < datetime.now(timezone.utc)
+                expiry = conn.token_expiry
+                if expiry.tzinfo is None:
+                    expiry = expiry.replace(tzinfo=timezone.utc)
+                is_expired = expiry < datetime.now(timezone.utc)
             
             response.append({
                 "id": conn.id,

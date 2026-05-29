@@ -85,12 +85,15 @@
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0 0 0.25rem 0;
+  text-transform: capitalize;
 }
 
 .user-email {
   font-size: 0.95rem;
   opacity: 0.9;
   margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .user-badge {
@@ -260,6 +263,11 @@
   gap: 1.5rem;
 }
 
+.info-item-new.email-info-item {
+  min-width: min-content;
+  grid-column: span 2;
+}
+
 .info-item-new {
   padding: 1.5rem;
   background: #f7fafc;
@@ -294,9 +302,17 @@
   margin: 0;
 }
 
+.email-info-item .info-value-new {
+  white-space: nowrap;
+}
+
+.info-item-new.username-info-item .info-value-new {
+  text-transform: capitalize;
+}
+
 /* Profile Edit Form */
 .profile-edit-form {
-  max-width: 600px;
+  max-width: 100%;
 }
 
 .form-group-new {

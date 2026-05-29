@@ -224,7 +224,7 @@ const UserProfile = () => {
                   </div>
 
                   <div className="info-grid-new">
-                    <div className="info-item-new">
+                    <div className="info-item-new email-info-item">
                       <label className="info-label-new">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path d="M3 8L10.89 13.26C11.25 13.48 11.75 13.48 12.11 13.26L20 8M5 19H19C20.1 19 21 18.1 21 17V7C21 5.9 20.1 5 19 5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19Z" strokeWidth="2" strokeLinecap="round"/>
@@ -234,7 +234,7 @@ const UserProfile = () => {
                       <p className="info-value-new">{user.email}</p>
                     </div>
 
-                    <div className="info-item-new">
+                    <div className="info-item-new username-info-item">
                       <label className="info-label-new">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path d="M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

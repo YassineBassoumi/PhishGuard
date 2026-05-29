@@ -206,7 +206,7 @@ function AppContent() {
       <main className="main-content-wrapper">
         <div className="main-header">
           <h1 className="main-greeting">
-            Bonjour, {user?.username || user?.full_name || 'User'} 👋
+            Bonjour, <span className="user-name">{user?.username || user?.full_name || 'User'}</span> 👋
           </h1>
           <NotificationCenter />
         </div>
